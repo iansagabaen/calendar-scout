@@ -67,7 +67,7 @@ export default function App() {
             initial="hidden"
             animate="visible"
             variants={containerVariants}
-            className="max-w-5xl"
+            className="max-w-5xl mx-auto"
           >
             <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 mb-10">
               <motion.h1 
@@ -92,7 +92,7 @@ export default function App() {
             {/* Strong CTA Section */}
             <motion.div 
               variants={itemVariants}
-              className="bg-scout-bg border border-scout-border rounded-[2.5rem] p-6 md:p-10 shadow-xl shadow-forest/5 relative overflow-hidden"
+              className="bg-scout-bg border border-scout-border rounded-[2.5rem] p-6 md:p-10 shadow-xl shadow-forest/5 relative overflow-hidden max-w-2xl mx-auto"
             >
               <div className="relative z-10">
                 <div className="flex flex-col gap-4 text-2xl md:text-4xl font-serif italic text-forest/90 leading-tight mb-8">
