@@ -1,0 +1,5 @@
+{
+  "name": "Your Calendar Scout",
+  "description": "Quickly scan your email, find events, and add them to your calendar.",
+  "requestFramePermissions": []
+}
