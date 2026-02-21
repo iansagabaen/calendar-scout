@@ -4,7 +4,7 @@ import { Mail, ListChecks, CalendarCheck, Coffee, AlertCircle, ShieldCheck, Copy
 
 export default function App() {
   const [copied, setCopied] = useState(false);
-  const scoutEmail = "iansagabaen+calendarscout@gmail.com";
+  const scoutEmail = "scoutmyemail@gmail.com";
 
   const copyToClipboard = async () => {
     try {
