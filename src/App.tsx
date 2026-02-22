@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Mail, ListChecks, CalendarCheck, Coffee, AlertCircle, ShieldCheck, Copy, Check } from "lucide-react";
+import { Mail, ListChecks, CalendarCheck, Coffee, AlertCircle, ShieldCheck, Copy, Check, Trophy, Stethoscope, Home, Users, Briefcase } from "lucide-react";
 
 export default function App() {
   const [copied, setCopied] = useState(false);
@@ -121,19 +121,66 @@ export default function App() {
           </motion.div>
         </section>
 
-        {/* What the Scout is for */}
+        {/* What to Scout */}
         <section className="py-12 px-6 border-t border-forest/5">
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-medium mb-4">What the Scout is for</h2>
-            <div className="prose prose-forest prose-lg text-forest/70 leading-relaxed space-y-4">
-              <p>
-                The Scout is built to handle the messy details that usually get buried in your inbox. 
-                It works best with long school newsletters, weekend sports practice schedules, and birthday party invitations.
+          <div className="max-w-5xl mx-auto">
+            <div className="max-w-3xl mb-10">
+              <h2 className="text-3xl md:text-4xl font-medium mb-4">What to Scout</h2>
+              <p className="text-lg text-forest/70">
+                Here are a few examples of how the Scout can help you stay organized by turning cluttered emails into simple calendar events.
               </p>
-              <p>
-                You can also forward PDF flyers for community events or neighborhood block parties. 
-                If it has a date and a time, the Scout can find it.
-              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-scout-bg/30 p-6 rounded-3xl border border-forest/5 hover:border-forest/10 transition-colors">
+                <div className="w-10 h-10 bg-forest/10 text-forest rounded-xl flex items-center justify-center mb-4">
+                  <Trophy size={20} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Youth Sports and Extra-Curriculars</h3>
+                <p className="text-forest/70 text-sm leading-relaxed">
+                  Forward those long seasonal practice schedules or weekend tournament brackets to see every game listed as an individual event with the field location included.
+                </p>
+              </div>
+
+              <div className="bg-scout-bg/30 p-6 rounded-3xl border border-forest/5 hover:border-forest/10 transition-colors">
+                <div className="w-10 h-10 bg-forest/10 text-forest rounded-xl flex items-center justify-center mb-4">
+                  <Stethoscope size={20} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Medical and Wellness Appointments</h3>
+                <p className="text-forest/70 text-sm leading-relaxed">
+                  When you get a confirmation email for a dentist appointment or a specialist visit, the Scout can pull the date and time so you don't have to navigate fragmented medical portals.
+                </p>
+              </div>
+
+              <div className="bg-scout-bg/30 p-6 rounded-3xl border border-forest/5 hover:border-forest/10 transition-colors">
+                <div className="w-10 h-10 bg-forest/10 text-forest rounded-xl flex items-center justify-center mb-4">
+                  <Home size={20} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Home Maintenance and Services</h3>
+                <p className="text-forest/70 text-sm leading-relaxed">
+                  Use it for those window cleaning reminders or HVAC service windows so you can track your home maintenance schedule without manual entry.
+                </p>
+              </div>
+
+              <div className="bg-scout-bg/30 p-6 rounded-3xl border border-forest/5 hover:border-forest/10 transition-colors">
+                <div className="w-10 h-10 bg-forest/10 text-forest rounded-xl flex items-center justify-center mb-4">
+                  <Users size={20} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Community and Social Events</h3>
+                <p className="text-forest/70 text-sm leading-relaxed">
+                  Forward invitations for neighborhood block parties or local library events to quickly handle the RSVP nightmare and see who needs to bring what.
+                </p>
+              </div>
+
+              <div className="bg-scout-bg/30 p-6 rounded-3xl border border-forest/5 hover:border-forest/10 transition-colors md:col-span-2">
+                <div className="w-10 h-10 bg-forest/10 text-forest rounded-xl flex items-center justify-center mb-4">
+                  <Briefcase size={20} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Work-Life Integration</h3>
+                <p className="text-forest/70 text-sm leading-relaxed">
+                  If you work in a field-heavy job like landscaping or HVAC and receive job details via email, the Scout can turn those messages into calendar entries while you are away from your desk.
+                </p>
+              </div>
             </div>
           </div>
         </section>
