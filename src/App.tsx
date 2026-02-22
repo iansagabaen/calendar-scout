@@ -62,28 +62,28 @@ export default function App() {
 
       {/* Hero Section */}
       <main className="flex-grow">
-        <section className="px-6 py-8 md:py-12 max-w-7xl mx-auto">
+        <section className="px-6 py-1 md:py-2 max-w-7xl mx-auto">
           <motion.div 
             initial="hidden"
             animate="visible"
             variants={containerVariants}
             className="max-w-5xl mx-auto"
           >
-            <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 mb-10">
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 mb-4">
               <motion.h1 
                 variants={itemVariants}
-                className="text-5xl md:text-7xl font-medium leading-[1.1] tracking-tight flex-1 order-2 md:order-1"
+                className="text-3xl md:text-5xl font-medium leading-[1.1] tracking-tight flex-1 order-2 md:order-1"
               >
                 From inbox to calendar in one tap
               </motion.h1>
               <motion.div 
                 variants={itemVariants}
-                className="shrink-0 w-64 h-64 md:w-[28rem] md:h-[28rem] order-1 md:order-2 overflow-hidden"
+                className="shrink-0 w-40 h-40 md:w-80 md:h-80 order-1 md:order-2 overflow-hidden"
               >
                 <img 
                   src="https://github.com/iansagabaen/calendar-scout/raw/refs/heads/main/image2vector%20(1).svg" 
                   alt="Calendar Scout Mascot" 
-                  className="w-full h-full object-contain scale-110"
+                  className="w-full h-full object-contain scale-125 mix-blend-multiply brightness-[1.08] contrast-[1.08]"
                   referrerPolicy="no-referrer"
                 />
               </motion.div>
@@ -101,11 +101,11 @@ export default function App() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <button 
                       onClick={copyToClipboard}
-                      className="group relative flex items-center justify-between w-full sm:w-auto bg-forest text-warm-white px-8 py-5 rounded-2xl text-lg md:text-xl font-sans font-semibold not-italic hover:bg-olive transition-all duration-300 shadow-lg shadow-forest/20 active:scale-[0.98]"
+                      className="group relative flex items-center justify-between w-full sm:w-auto bg-forest text-warm-white px-4 sm:px-8 py-4 sm:py-5 rounded-2xl text-sm sm:text-lg md:text-xl font-sans font-semibold not-italic hover:bg-olive transition-all duration-300 shadow-lg shadow-forest/20 active:scale-[0.98]"
                     >
-                      <span className="mr-8">{scoutEmail}</span>
-                      <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
-                        <Copy size={20} />
+                      <span className="mr-4 sm:mr-8 truncate">{scoutEmail}</span>
+                      <div className="shrink-0 p-2 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
+                        <Copy size={18} className="sm:w-5 sm:h-5" />
                       </div>
                     </button>
                   </div>
