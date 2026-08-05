@@ -1,0 +1,40 @@
+{
+	"name": "calendar-scout-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+	},
+	// Nightly automated parsing regression test (projects.md Calendar Scout backlog,
+	// 2026-07-13). Code-defined schedule, deliberately NOT a UI-configured trigger —
+	// avoids the exact failure mode (a schedule living only in a browser UI, invisible
+	// to code/git) that caused the 2026-07-12 Apps Script outage. Runs at 3am UTC
+	// (~7-8pm Pacific the evening before, depending on DST), a low-traffic window for
+	// this personal-scale tool. See src/regression-test.ts for what it does.
+	"triggers": {
+		"crons": ["0 3 * * *"],
+	},
+	// Local-dev-only send_email binding for `wrangler dev`'s simulated email testing.
+	// Not required for the actual receive path (that's the `email()` export below),
+	// but lets us exercise the Cloudflare Email Workers local harness end-to-end.
+	"send_email": [
+		{
+			"name": "SEND_EMAIL",
+		},
+	],
+	// KV namespace for processed-message dedup, welcomed-users list, and usage counts.
+	"kv_namespaces": [
+		{
+			"binding": "CALENDAR_SCOUT_KV",
+			"id": "4b465d81824546f4aa82fd94117c7ba1",
+			"preview_id": "34f94a78b0464b3595d6521126725b99",
+		},
+	],
+	"vars": {
+		"MY_EMAIL": "iansagabaen@gmail.com",
+		"DISPLAY_NAME": "Calendar Scout · report in ~1 min",
+		"DEBUG_FTUX_EMAIL": "iansagabaen@gmail.com",
+		"FROM_EMAIL": "scout@sendtoschedule.com",
+	},
+}

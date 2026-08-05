@@ -1,0 +1,7 @@
+## Copy this file to `.dev.vars` (gitignored) for local `wrangler dev` testing.
+## In production these are set via `wrangler secret put <NAME>`, never committed.
+
+GEMINI_API_KEY=your-gemini-api-key-here
+RESEND_API_KEY=your-resend-api-key-here
+POSTHOG_API_KEY=your-posthog-project-api-key-here
+ADMIN_SECRET=pick-a-long-random-string-here
