@@ -24,7 +24,7 @@ import { runNightlyRegressionTest } from './regression-test';
 
 // Alert thresholds, ported from Code.js processSingleEmail().
 const SLOW_THRESHOLD_MS = 90_000; // 90 seconds
-const SURVEY_AT_USE_COUNT = 5;
+const SURVEY_AT_USE_COUNT = 5; // Trigger feedback survey at 5th use
 
 function extractEmailAddress(fromStr: string): string {
 	// Pulls jane@gmail.com out of "Jane Smith <jane@gmail.com>" or returns as-is.
