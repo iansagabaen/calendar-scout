@@ -5,7 +5,7 @@
 // "photo of a flyer on a community bulletin board" bullet in the FTUX no-events email.
 
 import type { ScoutEvent } from './types';
-import { createCalendarUrl, createCalendarUrlWithSummary, formatDateWithDay } from './calendar-utils';
+import { createCalendarUrl, formatDateWithDay } from './calendar-utils';
 
 export const SIGNATURE = '<p>your calendar scout</p>';
 
@@ -104,8 +104,7 @@ export function buildReportEmail(
 	let eventCards = '';
 
 	sortedEvents.forEach((event) => {
-		const summaryLineForEvent = summaryLine;
-		const calendarLink = createCalendarUrlWithSummary(event, summaryLineForEvent);
+		const calendarLink = createCalendarUrl(event, cleanSubject, receivedDate);
 		const formattedDate = formatDateWithDay(event.Date);
 		const timeStr = event.Time ? `· ${event.Time}` : '';
 		const locationStr = event.Location
