@@ -94,18 +94,21 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 	const emailBody = (parsed.text || '').trim();
 	const receivedDate = formatDateCleanly(parsed.date ? new Date(parsed.date) : new Date());
 
+	// DISABLED: Media extraction (images/PDFs) has 0% success rate in manual testing.
+	// Process text-only until feature is revived.
+	// const mediaParts: MediaPart[] = [];
+	// for (const att of parsed.attachments || []) {
+	// 	const type = att.mimeType || '';
+	// 	if (type.includes('image/') || type.includes('pdf')) {
+	// 		mediaParts.push({
+	// 			inline_data: {
+	// 				mime_type: type,
+	// 				data: arrayBufferToBase64(att.content as ArrayBuffer),
+	// 			},
+	// 		});
+	// 	}
+	// }
 	const mediaParts: MediaPart[] = [];
-	for (const att of parsed.attachments || []) {
-		const type = att.mimeType || '';
-		if (type.includes('image/') || type.includes('pdf')) {
-			mediaParts.push({
-				inline_data: {
-					mime_type: type,
-					data: arrayBufferToBase64(att.content as ArrayBuffer),
-				},
-			});
-		}
-	}
 
 	// 2. Check FTUX context.
 	const welcomedList = await getWelcomedList(env.CALENDAR_SCOUT_KV);

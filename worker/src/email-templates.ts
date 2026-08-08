@@ -186,9 +186,8 @@ export function buildFallbackEmail(summary: string, isFirstTime: boolean, origin
         <p style="margin: 12px 0 8px 0;"><strong>I work best with:</strong></p>
         <p style="margin: 0 0 4px 0;">• Long school newsletters with multiple dates</p>
         <p style="margin: 0 0 4px 0;">• Sports practice schedules and tournament brackets</p>
-        <p style="margin: 0 0 4px 0;">• Birthday party invitations with times</p>
-        <p style="margin: 0 0 8px 0;">• PDF flyers for community events</p>
-        <p style="margin: 0 0 8px 0;">• A photo of a flyer on a community bulletin board. Snap it and send, no typing needed</p>
+        <p style="margin: 0 0 8px 0;">• Birthday party invitations with times</p>
+        <p style="margin: 0 0 8px 0;"><strong>Currently supports text-based emails.</strong> Image/PDF newsletter support coming soon.</p>
 
         <p style="margin: 12px 0 8px 0;"><strong>Your privacy is protected:</strong></p>
         <p style="margin: 0 0 4px 0;">✓ No account ever needed. Always free to use.</p>
@@ -236,11 +235,8 @@ export function buildGmailPermissionDiagnosticEmail(originalSubject: string): { 
       </p>
 
       <p style="margin: 12px 0 8px 0;"><strong>What you can do:</strong></p>
-      <p style="margin: 0 0 8px 0;">
-        Try forwarding the email <strong>without the attachment</strong>, or copy the event details to plain text and include that instead.
-      </p>
       <p style="margin: 0 0 0 0;">
-        For PDF flyers and images, I work great with those — just send those separately if needed.
+        Try forwarding the email <strong>without the attachment</strong>, or copy the event details to plain text and include that instead. For now, I work best with text-only emails.
       </p>
     </div>
 
