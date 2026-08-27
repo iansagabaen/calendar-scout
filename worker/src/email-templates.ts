@@ -104,7 +104,9 @@ export function buildReportEmail(
 	let eventCards = '';
 
 	sortedEvents.forEach((event) => {
-		const calendarLink = createCalendarUrl(event, cleanSubject, receivedDate);
+		const calendarLinkOrError = createCalendarUrl(event, cleanSubject, receivedDate);
+		const calendarLink = typeof calendarLinkOrError === 'string' ? calendarLinkOrError : null;
+		const calendarError = typeof calendarLinkOrError === 'string' ? null : calendarLinkOrError.error;
 		const formattedDate = formatDateWithDay(event.Date);
 		const timeStr = event.Time ? `· ${event.Time}` : '';
 		const locationStr = event.Location
@@ -115,6 +117,11 @@ export function buildReportEmail(
 			: `<div style="margin-bottom:12px;"></div>`;
 		const isUncertain = event.DateConfidence === 'low';
 
+		// If there's a calendar error, show it prominently
+		const errorWarning = calendarError
+			? `<div style="font-size:12px; color:#D84040; margin: 6px 0 4px;">⚠ Calendar date error: ${calendarError}</div>`
+			: '';
+
 		if (isUncertain) {
 			const warningStr = event.DateNote
 				? `<div style="font-size:12px; color:#92600A; margin: 6px 0 4px;">⚠ ${event.DateNote}</div>`
@@ -122,6 +129,9 @@ export function buildReportEmail(
 			const contextStr = event.DateContext
 				? `<div style="font-size:12px; color:#777; border-left: 3px solid #F5C542; padding-left: 10px; margin: 8px 0 12px; font-style: italic;">"${event.DateContext}"</div>`
 				: `<div style="margin-bottom:12px;"></div>`;
+			const calendarButtonHtml = calendarLink
+				? `<a href="${calendarLink}" style="display: block; background-color: #92600A; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar (review first)</a>`
+				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;
 			eventCards += `
         <div style="background-color: #FFFBF0; border: 1px solid #F5C542; border-radius: 16px; padding: 20px; margin-bottom: 16px;">
           <div style="font-weight: bold; font-size: 17px; color: #1a1a1a;">${event.Title}</div>
@@ -129,17 +139,22 @@ export function buildReportEmail(
           ${locationStr}
           ${warningStr}
           ${contextStr}
+          ${errorWarning}
           ${descStr}
-          <a href="${calendarLink}" style="display: block; background-color: #92600A; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar (review first)</a>
+          ${calendarButtonHtml}
         </div>`;
 		} else {
+			const calendarButtonHtml = calendarLink
+				? `<a href="${calendarLink}" style="display: block; background-color: #2E4A2E; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar</a>`
+				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;
 			eventCards += `
         <div style="background-color: #ffffff; border: 1px solid #E0E7E0; border-radius: 16px; padding: 20px; margin-bottom: 16px;">
           <div style="font-weight: bold; font-size: 17px; color: #1a1a1a;">${event.Title}</div>
           <div style="color: #8A9A8A; font-size: 14px; margin-top: 4px;">${formattedDate} ${timeStr}</div>
           ${locationStr}
+          ${errorWarning}
           ${descStr}
-          <a href="${calendarLink}" style="display: block; background-color: #2E4A2E; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar</a>
+          ${calendarButtonHtml}
         </div>`;
 		}
 	});

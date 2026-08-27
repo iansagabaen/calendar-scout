@@ -104,7 +104,12 @@ export function checkCalendarUrlWellFormed(url: string, eventLabel = 'event'): s
 function validateCalendarUrl(event: ScoutEvent, subject: string, receivedDate: string): string | null {
 	let url: string;
 	try {
-		url = createCalendarUrl(event, subject, receivedDate);
+		const result = createCalendarUrl(event, subject, receivedDate);
+		if (typeof result !== 'string') {
+			// Error case: result.error
+			return `createCalendarUrl() returned error for event "${event?.Title}": ${result.error}`;
+		}
+		url = result;
 	} catch (e: any) {
 		return `createCalendarUrl() threw for event "${event?.Title}": ${e?.toString?.() || String(e)}`;
 	}
