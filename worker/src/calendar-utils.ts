@@ -90,13 +90,19 @@ export function parseTime(timeStr: string | null | undefined): { start: string; 
 // ---------------------------------------------------------------------------
 // AM/PM inference
 // ---------------------------------------------------------------------------
-// Gemini is the PRIMARY inference path (see the prompt in gemini.ts): it sees
-// the whole email and adds an am/pm suffix when context makes it clear, and it
-// reports TimeConfidence / TimeInferenceNote back. The functions below are the
-// deterministic SAFETY NET for when Gemini leaves a time bare — a short,
-// auditable keyword rule list, applied only to email context we actually have.
-// Anything these rules cannot resolve stays bare and is rejected downstream by
-// parseTime() (the ⚠️ "please specify am or pm" error) — never silently defaulted.
+// Gemini is one inference path (see the prompt in gemini.ts): it sees the whole
+// email and can add an am/pm suffix when subtle prose makes it clear. The
+// functions below are the DETERMINISTIC layer that runs on every event Gemini
+// leaves bare. Its rule set is tuned to this product's domain — newsletters and
+// announcements (school bulletins, community calendars, church bulletins, camp
+// flyers) — where a bare "1"–"6 o'clock" time is PM in essentially every real
+// case and a bare "12:00" means noon. Those resolutions are treated as plain
+// reformatting, not guesses: confidence stays "high" and NO inference note is
+// attached, so the report's ⚠ note line does not fire for them (the time is
+// still visibly labelled "(inferred from context)"). Only a genuinely
+// un-disambiguatable time (a bare 7–11 o'clock with no keyword) is left bare,
+// and parseTime() then rejects it downstream with the hard ⚠️ "please specify
+// am or pm" error — never silently defaulted.
 
 const MERIDIEM_RE = /(a\.?m\.?|p\.?m\.?)/i;
 
@@ -139,84 +145,112 @@ export interface TimeInferenceContext {
 
 export interface InferAmPmResult {
 	time: string;
-	note: string; // "" when the time was explicit (24-hour normalisation only)
+	/**
+	 * Almost always "". The deterministic rules below treat their resolutions as
+	 * plain reformatting, not guesses, so they attach no note (the report then
+	 * shows no ⚠ line for them). The field is kept because a caller MAY carry a
+	 * Gemini-supplied note through the same shape.
+	 */
+	note: string;
 	confidence: 'high' | 'low';
 }
 
 /**
- * Deterministic am/pm safety net. Returns a resolved time + note, or null if the
- * rules cannot decide (caller then leaves the time bare -> parseTime rejects it).
+ * Deterministic am/pm resolution for the newsletter / announcement domain.
+ * Returns a resolved time (+ empty note), or null if the rules genuinely cannot
+ * decide (caller then leaves the time bare -> parseTime rejects it with the hard
+ * ⚠️ error).
  *
- * RULES (first match wins) — keep this list SMALL and documented:
- *   R0. Explicit 24-hour time ("15:30")           -> respected as-is, reformatted to
- *                                                     12-hour, confidence "high", no note.
- *   R1. context has "dinner" / "evening" / "tonight" -> PM
- *   R2. context has "afterschool" / "after school" / "dismissal" / "pickup" /
- *       "pick up" / "pick-up" / "practice" / "rehearsal", AND every start hour in
- *       the time is 1–6                            -> PM
- *   R3. context has "breakfast" / "drop-off" / "drop off" / "dropoff" /
- *       "before school" / "morning"               -> AM
- *   Otherwise                                     -> null (stays ambiguous)
+ * RULES, in priority order (first match wins):
+ *   R0. Explicit 24-hour time — start hour 0 / leading-zero ("08:00"), or 13–23
+ *       ("15:30")                                  -> reformat to 12-hour, "high", no note.
+ *   R1. Bare "12" / "12:xx" (hour 12, no am/pm)    -> PM (noon), "high", no note.
+ *   R2. AM keyword in context: "breakfast", "before school", "drop-off" /
+ *       "drop off" / "dropoff", "morning", "assembly", or an explicit
+ *       "a.m." / "am" token                        -> AM, "high", no note.
+ *   R3. Bare time, EVERY hour token in 1–6 inclusive, and R2 did not fire
+ *                                                  -> PM, "high", no note.
+ *   R4. Evening keyword: "dinner", "evening", "tonight", "after work"
+ *                                                  -> PM, "high", no note (covers hours 7–11).
+ *   R5. Afterschool keyword: "afterschool" / "after school", "dismissal",
+ *       "pickup" / "pick up" / "pick-up", "practice", "rehearsal"
+ *                                                  -> PM, "high", no note.
+ *   Otherwise (bare 7–11 o'clock, no keyword)      -> null (stays ambiguous).
  *
- * A bare range like "3-5" is only resolved when a rule above fires on the context;
- * with no context keyword it stays ambiguous, exactly as before.
+ * Ranges ("3-5", "3:30-5:00"): R3 fires when ALL hour tokens are 1–6, so both
+ * ends resolve to PM. The suffix is appended once at the end; parseTime() then
+ * propagates it to both ends of a range.
  */
 export function inferAmPm(timeStr: string | null | undefined, context: TimeInferenceContext = {}): InferAmPmResult | null {
 	if (!timeStr || !timeStr.trim()) return null;
 	const raw = timeStr.trim();
 
-	// Already has am/pm — nothing to infer.
+	// Already carries an explicit am/pm — nothing to infer.
 	if (MERIDIEM_RE.test(raw)) return null;
 
-	// R0: explicit 24-hour time — honour it, no inference note.
+	// R0: explicit 24-hour time — honour it exactly, just reformat. Not a guess,
+	// so no inference note and confidence stays "high".
 	const as24h = normalize24Hour(raw);
 	if (as24h) return { time: as24h, note: '', confidence: 'high' };
 
-	// Need at least one clock number to work with.
-	const firstNum = raw.match(/\d{1,2}/);
-	if (!firstNum) return null;
-	const startHour = parseInt(firstNum[0], 10);
+	// Hour of every "H" / "H:MM" token (minute digits ignored) so range forms
+	// like "3-5" / "3:30-5:00" can be judged as a whole.
+	const hourMatches = [...raw.matchAll(/(\d{1,2})(?::\d{2})?/g)];
+	if (hourMatches.length === 0) return null;
+	const hours = hourMatches.map((m) => parseInt(m[1], 10));
+	const startHour = hours[0];
+
+	// All deterministic resolutions are plain reformatting: high confidence, NO note.
+	const pm = (): InferAmPmResult => ({ time: `${raw}pm`, note: '', confidence: 'high' });
+	const am = (): InferAmPmResult => ({ time: `${raw}am`, note: '', confidence: 'high' });
+
+	// R1: a bare "12" / "12:xx" is noon. Nobody writes a midnight event as a bare
+	// "12:00" in a newsletter.
+	if (startHour === 12) return pm();
 
 	const ctx = [context.subject, context.body, context.title, context.description]
 		.filter(Boolean)
 		.join(' ')
 		.toLowerCase();
-	if (!ctx) return null;
 
-	const applySuffix = (suffix: 'am' | 'pm', reason: string): InferAmPmResult => ({
-		// Append the suffix once, at the end — parseTime() then propagates it to
-		// both ends of a range ("3:30-5:30" -> "3:30-5:30pm").
-		time: `${raw}${suffix}`,
-		note: `Read "${raw}" as ${suffix.toUpperCase()} — ${reason}.`,
-		confidence: 'low',
-	});
+	// R2: an explicit AM signal in the surrounding prose wins over the bare-hour
+	// rule below — e.g. "breakfast at 6" is 6 AM, not 6 PM.
+	const AM_KEYWORDS = /\b(breakfast|before school|drop[\s-]?off|morning|assembly)\b/;
+	const AM_TOKEN = /\bam\b|\ba\.m\.?/;
+	if (AM_KEYWORDS.test(ctx) || AM_TOKEN.test(ctx)) return am();
 
-	// R1: evening keywords -> PM
-	if (/\b(dinner|evening|tonight)\b/.test(ctx)) {
-		return applySuffix('pm', 'the email mentions an evening event');
-	}
+	// R3: broadened newsletter-domain rule. A bare time whose every hour is 1–6
+	// is PM. The domain here is school bulletins, community calendars, church
+	// bulletins and camp flyers — nobody advertises a 1–6 *AM* event in a
+	// newsletter, and genuinely late-night venues always write the "am"/"pm"
+	// suffix explicitly. So a bare "3:30" or "1-6" is safely PM with no warning.
+	if (hours.every((h) => h >= 1 && h <= 6)) return pm();
 
-	// R2: afterschool / activity keywords + a 1–6 start hour -> PM
-	if (/\b(afterschool|after school|dismissal|pick[\s-]?up|practice|rehearsal)\b/.test(ctx)) {
-		if (startHour >= 1 && startHour <= 6) {
-			return applySuffix('pm', 'the email describes an afterschool / pickup / practice activity');
-		}
-	}
+	// R4: evening language -> PM, including the 7–11 o'clock hours R3 does not cover.
+	if (/\b(dinner|evening|tonight|after work)\b/.test(ctx)) return pm();
 
-	// R3: morning keywords -> AM
-	if (/\b(breakfast|drop[\s-]?off|before school|morning)\b/.test(ctx)) {
-		return applySuffix('am', 'the email mentions a morning event');
-	}
+	// R5: afterschool / activity language -> PM (dismissal, pickup, practice and
+	// rehearsal all land in the afternoon or evening).
+	if (/\b(afterschool|after school|dismissal|pick[\s-]?up|practice|rehearsal)\b/.test(ctx)) return pm();
 
+	// Bare 7–11 o'clock with no disambiguating keyword: leave it bare so
+	// parseTime() emits the hard "please specify am or pm" error downstream.
 	return null;
 }
 
 /**
  * Walks the events Gemini returned and, for any event whose Time still lacks an
- * am/pm, tries the deterministic safety net using the email context. Mutates each
- * event in place: sets Time (with suffix), TimeInferenceNote, TimeConfidence.
- * Called once in the production pipeline (index.ts) before the report is built,
- * so both the report email and the calendar URL read the same resolved Time.
+ * am/pm, runs the deterministic domain rules (inferAmPm) using the email context.
+ * Mutates each event in place: sets Time (with suffix), TimeInferred,
+ * TimeInferenceNote, TimeConfidence. Called once in the production pipeline
+ * (index.ts) before the report is built, so both the report email and the
+ * calendar URL read the same resolved Time.
+ *
+ * TimeInferred is set whenever a suffix was added that the sender did not write
+ * (by these rules OR by Gemini) — that is the flag the report uses to append the
+ * "(inferred from context)" label. TimeInferenceNote is set ONLY when there is a
+ * sentence worth surfacing on the ⚠ line; the deterministic rules never set it,
+ * so the ⚠ line does not fire for them.
  */
 export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceContext = {}): void {
 	for (const event of events) {
@@ -226,9 +260,10 @@ export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceCo
 			continue;
 		}
 
-		// Gemini already inferred and explained it — trust that, don't re-run heuristics.
+		// Gemini already inferred and explained it — trust that, don't re-run rules.
 		if (event.TimeInferenceNote && event.TimeInferenceNote.trim()) {
 			event.TimeConfidence = event.TimeConfidence || 'low';
+			event.TimeInferred = true;
 			continue;
 		}
 
@@ -242,6 +277,7 @@ export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceCo
 		if (inferred) {
 			event.Time = inferred.time;
 			event.TimeConfidence = inferred.confidence;
+			event.TimeInferred = true;
 			if (inferred.note) event.TimeInferenceNote = inferred.note;
 		} else {
 			// Could not resolve — leave Time bare. parseTime() will reject it and the

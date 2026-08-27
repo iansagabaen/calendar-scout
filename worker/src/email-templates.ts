@@ -108,12 +108,16 @@ export function buildReportEmail(
 		const calendarLink = typeof calendarLinkOrError === 'string' ? calendarLinkOrError : null;
 		const calendarError = typeof calendarLinkOrError === 'string' ? null : calendarLinkOrError.error;
 		const formattedDate = formatDateWithDay(event.Date);
-		// An am/pm suffix that the sender did NOT write is always flagged, so a wrong
-		// guess is easy to spot. TimeInferenceNote is set (by Gemini or the heuristic
-		// safety net) only when a suffix was inferred.
-		const timeInferred = !!(event.TimeInferenceNote && event.TimeInferenceNote.trim());
+		// An am/pm suffix the sender did NOT write is always labelled, so it is never
+		// silent. TimeInferred covers both paths (deterministic domain rules and
+		// Gemini). The ⚠ note line is separate: it renders ONLY when there is a
+		// TimeInferenceNote sentence worth showing — the deterministic rules set
+		// none, so the ⚠ line effectively disappears for them, while a genuinely
+		// borderline Gemini inference still surfaces its reason.
+		const timeHasNote = !!(event.TimeInferenceNote && event.TimeInferenceNote.trim());
+		const timeInferred = timeHasNote || event.TimeInferred === true;
 		const timeStr = event.Time ? `· ${event.Time}${timeInferred ? ' (inferred from context)' : ''}` : '';
-		const timeNoteStr = timeInferred
+		const timeNoteStr = timeHasNote
 			? `<div style="font-size:12px; color:#92600A; margin: 6px 0 4px;">⚠ ${event.TimeInferenceNote}</div>`
 			: '';
 		const locationStr = event.Location
