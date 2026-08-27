@@ -5,6 +5,8 @@ session digests for the Calendar Scout email worker and landing page.
 
 *New research files must be added here in the same commit.*
 
+> ⚠️ **Never paste live secrets into digests.** API tokens, keys, passwords, connection strings — redact them (`[REDACTED]`) or reference the secret's name only. Two live tokens leaked into these digests on 2026-08-26 and had to be scrubbed from git history. See `MEMORY/` in the monorepo root for the incident note.
+
 | Date | File | Description |
 |------|------|-------------|
 | 2026-07-13 | [2026-07-13-calendar-scout-ocr-stress-test.md](2026-07-13-calendar-scout-ocr-stress-test.md) | Stress-test of the shipped image/PDF attachment parsing path in the Apps Script `Code.js`, grading Gemini vision output on messy real-world flyers against known ground truth. |
