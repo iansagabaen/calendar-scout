@@ -41,14 +41,28 @@ export function parseTime(timeStr: string | null | undefined): { start: string; 
 	if (!timeStr) return null;
 
 	// Check for range format (with explicit "to" or "-")
-	const rangeMatch = timeStr.match(/(\d{1,2}(?::\d{2})?)\s*(?:to|-)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)?/i);
+	// This regex captures: time1 (with optional am/pm), range delimiter, time2 (with optional am/pm), and optional trailing am/pm
+	const rangeMatch = timeStr.match(/(\d{1,2}(?::\d{2})?)(?:\s*(am|pm))?\s*(?:to|-)\s*(\d{1,2}(?::\d{2})?)(?:\s*(am|pm))?\s*(am|pm)?/i);
 	if (rangeMatch) {
-		const suffix = rangeMatch[3];
-		// If suffix exists, use it for both; otherwise reject (ambiguous without am/pm)
+		const start = rangeMatch[1];
+		const startSuffix = rangeMatch[2];
+		const end = rangeMatch[3];
+		const endSuffix = rangeMatch[4];
+		const trailingSuffix = rangeMatch[5];
+
+		// Determine the suffix to use
+		let suffix = startSuffix || endSuffix || trailingSuffix;
+
+		// If no suffix at all, reject as ambiguous
 		if (!suffix) {
 			return { error: `Time range "${timeStr}" is ambiguous. Please specify am or pm, e.g., "3:00am to 5:00pm"` };
 		}
-		return { start: rangeMatch[1] + suffix, end: rangeMatch[2] + suffix };
+
+		// Build the result with appropriate suffixes
+		const startTime = startSuffix ? start + startSuffix : start + suffix;
+		const endTime = endSuffix ? end + endSuffix : end + suffix;
+
+		return { start: startTime, end: endTime };
 	}
 
 	// Single time like "9:00pm" — MUST have am/pm
