@@ -152,14 +152,28 @@ export interface InferAmPmResult {
 	 * Gemini-supplied note through the same shape.
 	 */
 	note: string;
+	/**
+	 * Human-readable 1–2 sentence explanation naming the raw value, the
+	 * interpretation, and the reason. resolveEventTimes() appends this to the
+	 * event's Description so the reasoning travels onto the user's calendar (they
+	 * can apply their own judgment later without the report email in front of
+	 * them). "" for R0 (a 24-hour time is a straight reformat, nothing to judge).
+	 */
+	justification: string;
 	confidence: 'high' | 'low';
+}
+
+/** "3:30pm" -> "3:30 PM", "8:00am-5:00pm" -> "8:00 AM-5:00 PM". For prose only. */
+function prettyMeridiem(t: string): string {
+	return t.replace(/(am|pm)/gi, (m) => ' ' + m.toUpperCase()).trim();
 }
 
 /**
  * Deterministic am/pm resolution for the newsletter / announcement domain.
- * Returns a resolved time (+ empty note), or null if the rules genuinely cannot
- * decide (caller then leaves the time bare -> parseTime rejects it with the hard
- * ⚠️ error).
+ * Returns a resolved time (with an empty ⚠ note but a plain-language
+ * `justification` for R1–R5), or null if the rules genuinely cannot decide
+ * (caller then leaves the time bare -> parseTime rejects it with the hard ⚠️
+ * error).
  *
  * RULES, in priority order (first match wins):
  *   R0. Explicit 24-hour time — start hour 0 / leading-zero ("08:00"), or 13–23
@@ -189,9 +203,9 @@ export function inferAmPm(timeStr: string | null | undefined, context: TimeInfer
 	if (MERIDIEM_RE.test(raw)) return null;
 
 	// R0: explicit 24-hour time — honour it exactly, just reformat. Not a guess,
-	// so no inference note and confidence stays "high".
+	// so no inference note, no justification, confidence stays "high".
 	const as24h = normalize24Hour(raw);
-	if (as24h) return { time: as24h, note: '', confidence: 'high' };
+	if (as24h) return { time: as24h, note: '', justification: '', confidence: 'high' };
 
 	// Hour of every "H" / "H:MM" token (minute digits ignored) so range forms
 	// like "3-5" / "3:30-5:00" can be judged as a whole.
@@ -200,13 +214,16 @@ export function inferAmPm(timeStr: string | null | undefined, context: TimeInfer
 	const hours = hourMatches.map((m) => parseInt(m[1], 10));
 	const startHour = hours[0];
 
-	// All deterministic resolutions are plain reformatting: high confidence, NO note.
-	const pm = (): InferAmPmResult => ({ time: `${raw}pm`, note: '', confidence: 'high' });
-	const am = (): InferAmPmResult => ({ time: `${raw}am`, note: '', confidence: 'high' });
+	// All deterministic resolutions are plain reformatting: high confidence, NO
+	// ⚠ note — but each carries a plain-language justification for the Description.
+	const pm = (justification: string): InferAmPmResult => ({ time: `${raw}pm`, note: '', justification, confidence: 'high' });
+	const am = (justification: string): InferAmPmResult => ({ time: `${raw}am`, note: '', justification, confidence: 'high' });
 
 	// R1: a bare "12" / "12:xx" is noon. Nobody writes a midnight event as a bare
 	// "12:00" in a newsletter.
-	if (startHour === 12) return pm();
+	if (startHour === 12) {
+		return pm(`⏰ Time note: "${raw}" had no am/pm; read as ${prettyMeridiem(`${raw}pm`)} (noon).`);
+	}
 
 	const ctx = [context.subject, context.body, context.title, context.description]
 		.filter(Boolean)
@@ -214,24 +231,44 @@ export function inferAmPm(timeStr: string | null | undefined, context: TimeInfer
 		.toLowerCase();
 
 	// R2: an explicit AM signal in the surrounding prose wins over the bare-hour
-	// rule below — e.g. "breakfast at 6" is 6 AM, not 6 PM.
+	// rule below — e.g. "breakfast at 6" is 6 AM, not 6 PM. The "am" token must be
+	// time-adjacent (a digit right before it) so ordinary prose like "I am glad"
+	// does not force AM.
 	const AM_KEYWORDS = /\b(breakfast|before school|drop[\s-]?off|morning|assembly)\b/;
-	const AM_TOKEN = /\bam\b|\ba\.m\.?/;
-	if (AM_KEYWORDS.test(ctx) || AM_TOKEN.test(ctx)) return am();
+	const AM_TOKEN = /\d\s?a\.?m\.?\b/;
+	const amKw = ctx.match(AM_KEYWORDS);
+	if (amKw) {
+		return am(`⏰ Time note: "${raw}" had no am/pm; read as ${prettyMeridiem(`${raw}am`)} based on "${amKw[1]}" in the announcement.`);
+	}
+	if (AM_TOKEN.test(ctx)) {
+		return am(`⏰ Time note: "${raw}" had no am/pm; read as ${prettyMeridiem(`${raw}am`)} because an "am" was written with the time in the announcement.`);
+	}
 
 	// R3: broadened newsletter-domain rule. A bare time whose every hour is 1–6
 	// is PM. The domain here is school bulletins, community calendars, church
 	// bulletins and camp flyers — nobody advertises a 1–6 *AM* event in a
 	// newsletter, and genuinely late-night venues always write the "am"/"pm"
 	// suffix explicitly. So a bare "3:30" or "1-6" is safely PM with no warning.
-	if (hours.every((h) => h >= 1 && h <= 6)) return pm();
+	if (hours.every((h) => h >= 1 && h <= 6)) {
+		return pm(
+			`⏰ Time note: the announcement said "${raw}" with no am/pm. Read as ${prettyMeridiem(
+				`${raw}pm`
+			)} — activities listed at 1–6 o'clock in a newsletter are afternoon events. Verify against the original if this looks off.`
+		);
+	}
 
 	// R4: evening language -> PM, including the 7–11 o'clock hours R3 does not cover.
-	if (/\b(dinner|evening|tonight|after work)\b/.test(ctx)) return pm();
+	const eveKw = ctx.match(/\b(dinner|evening|tonight|after work)\b/);
+	if (eveKw) {
+		return pm(`⏰ Time note: "${raw}" had no am/pm; read as ${prettyMeridiem(`${raw}pm`)} based on "${eveKw[1]}" in the announcement.`);
+	}
 
 	// R5: afterschool / activity language -> PM (dismissal, pickup, practice and
 	// rehearsal all land in the afternoon or evening).
-	if (/\b(afterschool|after school|dismissal|pick[\s-]?up|practice|rehearsal)\b/.test(ctx)) return pm();
+	const asKw = ctx.match(/\b(afterschool|after school|dismissal|pick[\s-]?up|practice|rehearsal)\b/);
+	if (asKw) {
+		return pm(`⏰ Time note: "${raw}" had no am/pm; read as ${prettyMeridiem(`${raw}pm`)} based on "${asKw[1]}" in the announcement.`);
+	}
 
 	// Bare 7–11 o'clock with no disambiguating keyword: leave it bare so
 	// parseTime() emits the hard "please specify am or pm" error downstream.
@@ -251,8 +288,18 @@ export function inferAmPm(timeStr: string | null | undefined, context: TimeInfer
  * "(inferred from context)" label. TimeInferenceNote is set ONLY when there is a
  * sentence worth surfacing on the ⚠ line; the deterministic rules never set it,
  * so the ⚠ line does not fire for them.
+ *
+ * Whenever a bare time is touched, a short "⏰ Time note: …" block is appended to
+ * event.Description (preserving any existing text, blank-line separated) so the
+ * reasoning travels onto the user's calendar, not just the report email.
  */
 export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceContext = {}): void {
+	const appendTimeNote = (event: ScoutEvent, block: string): void => {
+		if (!block) return;
+		const existing = (event.Description || '').trim();
+		event.Description = existing ? `${existing}\n\n${block}` : block;
+	};
+
 	for (const event of events) {
 		const time = (event.Time || '').trim();
 		if (!time) {
@@ -261,9 +308,11 @@ export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceCo
 		}
 
 		// Gemini already inferred and explained it — trust that, don't re-run rules.
+		// Carry Gemini's own note into the Description as the justification.
 		if (event.TimeInferenceNote && event.TimeInferenceNote.trim()) {
 			event.TimeConfidence = event.TimeConfidence || 'low';
 			event.TimeInferred = true;
+			appendTimeNote(event, `⏰ Time note: ${event.TimeInferenceNote.trim()}`);
 			continue;
 		}
 
@@ -279,10 +328,16 @@ export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceCo
 			event.TimeConfidence = inferred.confidence;
 			event.TimeInferred = true;
 			if (inferred.note) event.TimeInferenceNote = inferred.note;
+			appendTimeNote(event, inferred.justification);
 		} else {
 			// Could not resolve — leave Time bare. parseTime() will reject it and the
-			// report shows the existing ⚠️ "please specify am or pm" error.
+			// report shows the existing ⚠️ "please specify am or pm" error. No event/URL
+			// is built today, but if one ever is, the note explains the open question.
 			event.TimeConfidence = 'low';
+			appendTimeNote(
+				event,
+				`⏰ Time note: the announcement said "${time}" with no am/pm and context didn't make it clear. Please confirm the time before relying on this event.`
+			);
 		}
 	}
 }

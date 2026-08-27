@@ -5,13 +5,16 @@ import type { ScoutEvent } from '../src/types';
 
 // Deterministic AM/PM resolution for the newsletter / announcement domain.
 // See calendar-utils.ts inferAmPm / resolveEventTimes. Rule set (priority order):
-//   R0 explicit 24-hour time            -> reformat, high, no note
-//   R1 bare "12" / "12:xx"              -> PM (noon), high, no note
-//   R2 AM keyword / "am" token          -> AM, high, no note
-//   R3 bare time, every hour 1-6        -> PM, high, no note   (broadened domain rule)
-//   R4 evening keyword                  -> PM, high, no note
-//   R5 afterschool keyword              -> PM, high, no note
+//   R0 explicit 24-hour time            -> reformat, high, no note, no justification
+//   R1 bare "12" / "12:xx"              -> PM (noon), high, no ⚠ note, + justification
+//   R2 AM keyword / time-adjacent "am"  -> AM, high, no ⚠ note, + justification
+//   R3 bare time, every hour 1-6        -> PM, high, no ⚠ note, + justification
+//   R4 evening keyword                  -> PM, high, no ⚠ note, + justification
+//   R5 afterschool keyword              -> PM, high, no ⚠ note, + justification
 //   otherwise (bare 7-11, no keyword)   -> null (stays ambiguous, hard error downstream)
+//
+// The `justification` string is what resolveEventTimes appends to event.Description
+// so the reasoning travels onto the user's calendar, not just the report email.
 
 describe('normalize24Hour', () => {
 	it('reformats a single 24-hour time to 12-hour + suffix', () => {
@@ -39,14 +42,14 @@ describe('normalize24Hour', () => {
 });
 
 describe('inferAmPm — R0: explicit 24-hour time', () => {
-	it('reformats "15:30" to 12-hour, high confidence, NO note', () => {
+	it('reformats "15:30" to 12-hour, high confidence, NO note, NO justification', () => {
 		const r = inferAmPm('15:30', { body: 'Meeting at 15:30 in room 4.' });
-		expect(r).toEqual({ time: '3:30pm', note: '', confidence: 'high' });
+		expect(r).toEqual({ time: '3:30pm', note: '', justification: '', confidence: 'high' });
 	});
 
 	it('treats a leading-zero "08:00" as an explicit (AM) 24-hour time', () => {
 		const r = inferAmPm('08:00', {});
-		expect(r).toEqual({ time: '8:00am', note: '', confidence: 'high' });
+		expect(r).toEqual({ time: '8:00am', note: '', justification: '', confidence: 'high' });
 	});
 
 	it('reformats a 24-hour range', () => {
@@ -55,8 +58,12 @@ describe('inferAmPm — R0: explicit 24-hour time', () => {
 });
 
 describe('inferAmPm — R1: bare 12 o’clock is noon', () => {
-	it('bare "12:00" -> 12:00pm (noon), high, no note', () => {
-		expect(inferAmPm('12:00', {})).toEqual({ time: '12:00pm', note: '', confidence: 'high' });
+	it('bare "12:00" -> 12:00pm (noon), high, no ⚠ note, with a justification', () => {
+		const r = inferAmPm('12:00', {});
+		expect(r!.time).toBe('12:00pm');
+		expect(r!.confidence).toBe('high');
+		expect(r!.note).toBe('');
+		expect(r!.justification).toBe('⏰ Time note: "12:00" had no am/pm; read as 12:00 PM (noon).');
 	});
 
 	it('bare "12:30" -> 12:30pm', () => {
@@ -70,10 +77,13 @@ describe('inferAmPm — R1: bare 12 o’clock is noon', () => {
 	});
 });
 
-describe('inferAmPm — R2: AM keywords / "am" token', () => {
-	it('"breakfast" context -> AM, high, no note', () => {
+describe('inferAmPm — R2: AM keywords / time-adjacent "am" token', () => {
+	it('"breakfast" context -> AM, high, no ⚠ note, justification names the keyword', () => {
 		const r = inferAmPm('8:30', { body: 'Join us for the breakfast meet-and-greet at 8:30.' });
-		expect(r).toEqual({ time: '8:30am', note: '', confidence: 'high' });
+		expect(r!.time).toBe('8:30am');
+		expect(r!.confidence).toBe('high');
+		expect(r!.note).toBe('');
+		expect(r!.justification).toBe('⏰ Time note: "8:30" had no am/pm; read as 8:30 AM based on "breakfast" in the announcement.');
 	});
 
 	it('"morning drop-off" context -> AM', () => {
@@ -84,8 +94,19 @@ describe('inferAmPm — R2: AM keywords / "am" token', () => {
 		expect(inferAmPm('9', { subject: 'Grade 4 assembly', body: 'Starts at 9.' })!.time).toBe('9am');
 	});
 
-	it('an explicit "am" token in prose -> AM', () => {
+	it('a time-adjacent "am" token in prose -> AM ("10 am")', () => {
 		expect(inferAmPm('3', { body: 'The picnic kicks off at 10 am.' })!.time).toBe('3am');
+	});
+
+	it('a time-adjacent "a.m." token -> AM ("9 a.m.")', () => {
+		expect(inferAmPm('9', { body: 'Doors open at 9 a.m. sharp.' })!.time).toBe('9am');
+	});
+
+	it('a stray prose "am" NOT next to a digit does NOT force AM', () => {
+		// "I am thrilled" must not trigger R2; hour 5 then falls to R3 -> PM.
+		const r = inferAmPm('5', { body: 'I am thrilled — dinner at 5.' });
+		expect(r!.time).toBe('5pm');
+		expect(r!.confidence).toBe('high');
 	});
 
 	it('R2 beats R3: "breakfast at 6" is 6 AM, not 6 PM', () => {
@@ -94,12 +115,18 @@ describe('inferAmPm — R2: AM keywords / "am" token', () => {
 });
 
 describe('inferAmPm — R3: bare 1–6 o’clock is PM (broadened newsletter-domain rule)', () => {
-	it('bare "1:00" -> PM, high, no note', () => {
-		expect(inferAmPm('1:00', {})).toEqual({ time: '1:00pm', note: '', confidence: 'high' });
+	it('bare "1:00" -> PM, high, no ⚠ note, with a justification', () => {
+		const r = inferAmPm('1:00', {});
+		expect(r!.time).toBe('1:00pm');
+		expect(r!.confidence).toBe('high');
+		expect(r!.note).toBe('');
+		expect(r!.justification).toContain('the announcement said "1:00" with no am/pm');
+		expect(r!.justification).toContain('Read as 1:00 PM');
+		expect(r!.justification).toContain('Verify against the original if this looks off.');
 	});
 
-	it('bare "3:30" with no keywords -> PM, high, no note', () => {
-		expect(inferAmPm('3:30', {})).toEqual({ time: '3:30pm', note: '', confidence: 'high' });
+	it('bare "3:30" with no keywords -> PM', () => {
+		expect(inferAmPm('3:30', {})!.time).toBe('3:30pm');
 	});
 
 	it('bare "5:00" -> PM', () => {
@@ -128,8 +155,10 @@ describe('inferAmPm — R3: bare 1–6 o’clock is PM (broadened newsletter-dom
 });
 
 describe('inferAmPm — R4: evening keywords (covers hours 7–11)', () => {
-	it('"dinner" -> PM even for an out-of-1–6 hour', () => {
-		expect(inferAmPm('9:00', { body: 'Potluck dinner, please arrive by 9:00.' })!.time).toBe('9:00pm');
+	it('"dinner" -> PM even for an out-of-1–6 hour, justification names the keyword', () => {
+		const r = inferAmPm('9:00', { body: 'Potluck dinner, please arrive by 9:00.' });
+		expect(r!.time).toBe('9:00pm');
+		expect(r!.justification).toBe('⏰ Time note: "9:00" had no am/pm; read as 9:00 PM based on "dinner" in the announcement.');
 	});
 
 	it('"tonight" -> PM', () => {
@@ -142,8 +171,10 @@ describe('inferAmPm — R4: evening keywords (covers hours 7–11)', () => {
 });
 
 describe('inferAmPm — R5: afterschool keywords', () => {
-	it('"afterschool pickup" -> PM (no hour restriction any more)', () => {
-		expect(inferAmPm('9:00', { body: 'Afterschool club runs late; pickup at 9:00.' })!.time).toBe('9:00pm');
+	it('"afterschool pickup" -> PM (no hour restriction any more), justification names the keyword', () => {
+		const r = inferAmPm('9:00', { body: 'Afterschool club runs late; pickup at 9:00.' });
+		expect(r!.time).toBe('9:00pm');
+		expect(r!.justification).toBe('⏰ Time note: "9:00" had no am/pm; read as 9:00 PM based on "afterschool" in the announcement.');
 	});
 
 	it('"rehearsal" -> PM', () => {
@@ -174,7 +205,7 @@ describe('inferAmPm — stays ambiguous', () => {
 });
 
 describe('resolveEventTimes — write-back onto events', () => {
-	it('resolves a bare 1–6 time to PM: high confidence, NO note, TimeInferred flag set', () => {
+	it('resolves a bare 1–6 time to PM: high confidence, NO ⚠ note, TimeInferred flag set', () => {
 		const events: ScoutEvent[] = [{ Title: 'Chess Club', Date: 'Sep 10, 2026', Time: '3:30' }];
 		resolveEventTimes(events, { subject: 'Chess Club', body: 'Weekly chess club.' });
 		expect(events[0].Time).toBe('3:30pm');
@@ -191,7 +222,7 @@ describe('resolveEventTimes — write-back onto events', () => {
 		expect(events[0].TimeInferred).toBe(true);
 	});
 
-	it('resolves a bare AM-keyword time without a note', () => {
+	it('resolves a bare AM-keyword time without a ⚠ note', () => {
 		const events: ScoutEvent[] = [{ Title: 'Pancake Breakfast', Date: 'Sep 10, 2026', Time: '8' }];
 		resolveEventTimes(events, { body: 'Pancake breakfast, doors at 8.' });
 		expect(events[0].Time).toBe('8am');
@@ -201,12 +232,13 @@ describe('resolveEventTimes — write-back onto events', () => {
 	});
 
 	it('leaves an explicit am/pm time untouched and marks it high confidence', () => {
-		const events: ScoutEvent[] = [{ Title: 'Recital', Date: 'Sep 10, 2026', Time: '6:30-8:00pm' }];
+		const events: ScoutEvent[] = [{ Title: 'Recital', Date: 'Sep 10, 2026', Time: '6:30-8:00pm', Description: 'Evening recital.' }];
 		resolveEventTimes(events, { body: 'evening recital' });
 		expect(events[0].Time).toBe('6:30-8:00pm');
 		expect(events[0].TimeConfidence).toBe('high');
 		expect(events[0].TimeInferenceNote).toBeUndefined();
 		expect(events[0].TimeInferred).toBeUndefined();
+		expect(events[0].Description).toBe('Evening recital.'); // not touched
 	});
 
 	it('trusts a note Gemini already supplied and does not re-run the rules', () => {
@@ -241,6 +273,67 @@ describe('resolveEventTimes — write-back onto events', () => {
 		resolveEventTimes(events, {});
 		expect(events[0].Time).toBeUndefined();
 		expect(events[0].TimeConfidence).toBe('high');
+	});
+});
+
+describe('resolveEventTimes — time-inference justification travels in event.Description', () => {
+	it('R3: appends the note after the existing description, blank-line separated', () => {
+		const events: ScoutEvent[] = [
+			{ Title: 'Robotics', Date: 'Sep 10, 2026', Time: '3:30', Description: 'Robotics club, room 12.' },
+		];
+		resolveEventTimes(events, { body: 'Robotics club meets Thursday.' });
+		// existing text preserved, blank-line separated, then the note
+		expect(events[0].Description).toMatch(/^Robotics club, room 12\.\n\n⏰ Time note: the announcement said "3:30" with no am\/pm\. Read as 3:30 PM /);
+		expect(events[0].Description).toContain('are afternoon events. Verify against the original if this looks off.');
+	});
+
+	it('R1: sets the Description to the noon note when there was no description', () => {
+		const events: ScoutEvent[] = [{ Title: 'Volunteer Lunch', Date: 'Sep 10, 2026', Time: '12:00' }];
+		resolveEventTimes(events, {});
+		expect(events[0].Description).toBe('⏰ Time note: "12:00" had no am/pm; read as 12:00 PM (noon).');
+	});
+
+	it('R2: names the AM keyword that drove the reading', () => {
+		const events: ScoutEvent[] = [
+			{ Title: 'Pancake Breakfast', Date: 'Sep 10, 2026', Time: '8:00', Description: 'In the gym.' },
+		];
+		resolveEventTimes(events, { body: 'Annual pancake breakfast fundraiser.' });
+		expect(events[0].Description).toBe(
+			'In the gym.\n\n⏰ Time note: "8:00" had no am/pm; read as 8:00 AM based on "breakfast" in the announcement.'
+		);
+	});
+
+	it('Gemini prose inference: its own note text becomes the justification', () => {
+		const events: ScoutEvent[] = [
+			{
+				Title: 'Open House',
+				Date: 'Sep 10, 2026',
+				Time: '7:00pm',
+				TimeInferenceNote: 'Read "7" as PM because the passage describes an evening reception.',
+				Description: 'Meet the teachers.',
+			},
+		];
+		resolveEventTimes(events, {});
+		expect(events[0].Description).toBe(
+			'Meet the teachers.\n\n⏰ Time note: Read "7" as PM because the passage describes an evening reception.'
+		);
+	});
+
+	it('unresolved 7–11 time: appends a "please confirm" note in case an event is still built', () => {
+		const events: ScoutEvent[] = [{ Title: 'Rummage Sale', Date: 'Sep 10, 2026', Time: '8:00' }];
+		resolveEventTimes(events, { body: 'Rummage sale in the gym.' });
+		expect(events[0].Description).toBe(
+			'⏰ Time note: the announcement said "8:00" with no am/pm and context didn\'t make it clear. ' +
+				'Please confirm the time before relying on this event.'
+		);
+	});
+
+	it('the justification is carried into the Google Calendar URL details param', () => {
+		const events: ScoutEvent[] = [{ Title: 'Chess Club', Date: 'Sep 10, 2026', Time: '3:30' }];
+		resolveEventTimes(events, { body: 'Weekly chess club.' });
+		const url = createCalendarUrl(events[0], 'subj', 'Sep 1, 2026');
+		expect(typeof url).toBe('string');
+		expect(url as string).toContain('Time%20note'); // url-encoded "Time note"
 	});
 });
 
