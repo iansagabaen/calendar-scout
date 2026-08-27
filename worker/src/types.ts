@@ -41,6 +41,14 @@ export interface ScoutEvent {
 	DateConfidence?: 'high' | 'low';
 	DateNote?: string;
 	DateContext?: string;
+	// AM/PM inference (see calendar-utils.ts inferAmPm / resolveEventTimes and the
+	// gemini.ts prompt). "high" = am/pm was explicitly written or is unmistakable
+	// from context; "low" = am/pm was inferred and could be wrong. TimeInferenceNote
+	// is non-empty ONLY when an am/pm suffix was added that the sender did not write,
+	// so its mere presence is the signal to surface "(inferred from context)" in the
+	// report email — never apply an inferred suffix silently.
+	TimeConfidence?: 'high' | 'low';
+	TimeInferenceNote?: string;
 }
 
 export interface GeminiResult {

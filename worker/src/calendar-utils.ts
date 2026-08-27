@@ -87,6 +87,170 @@ export function parseTime(timeStr: string | null | undefined): { start: string; 
 	return { error: `Could not parse time "${timeStr}". Please use format like "3:00pm" or "3:00am to 5:00pm"` };
 }
 
+// ---------------------------------------------------------------------------
+// AM/PM inference
+// ---------------------------------------------------------------------------
+// Gemini is the PRIMARY inference path (see the prompt in gemini.ts): it sees
+// the whole email and adds an am/pm suffix when context makes it clear, and it
+// reports TimeConfidence / TimeInferenceNote back. The functions below are the
+// deterministic SAFETY NET for when Gemini leaves a time bare — a short,
+// auditable keyword rule list, applied only to email context we actually have.
+// Anything these rules cannot resolve stays bare and is rejected downstream by
+// parseTime() (the ⚠️ "please specify am or pm" error) — never silently defaulted.
+
+const MERIDIEM_RE = /(a\.?m\.?|p\.?m\.?)/i;
+
+/**
+ * If `timeStr` is an explicit 24-hour time (a start hour of 0 or 13–23 appears),
+ * rewrite it to a 12-hour string with am/pm suffixes. "15:30" -> "3:30pm",
+ * "08:00-17:00" -> "8:00am-5:00pm". This is NOT inference — the sender stated the
+ * exact time — so callers keep TimeConfidence "high" and add no inference note.
+ * Returns null if the string is not a 24-hour time.
+ */
+export function normalize24Hour(timeStr: string): string | null {
+	if (MERIDIEM_RE.test(timeStr)) return null;
+	const tokens = [...timeStr.matchAll(/(\d{1,2})(?::(\d{2}))?/g)];
+	if (tokens.length === 0) return null;
+	const hours = tokens.map((t) => parseInt(t[1], 10));
+	// Only treat as 24-hour when at least one hour is unambiguously 24-hour (0 with
+	// a leading zero, or 13–23). Otherwise "3-5" is a bare 12-hour range, not 24h.
+	const looks24h = tokens.some((t, i) => hours[i] >= 13 && hours[i] <= 23) || /\b0\d:/.test(timeStr);
+	if (!looks24h) return null;
+
+	let out = timeStr;
+	// Replace each H or H:MM token, longest-first by position, with 12-hour + suffix.
+	out = out.replace(/(\d{1,2})(?::(\d{2}))?/g, (_m, h: string, mm: string | undefined) => {
+		let hh = parseInt(h, 10);
+		if (hh < 0 || hh > 23) return _m;
+		const suffix = hh >= 12 ? 'pm' : 'am';
+		if (hh === 0) hh = 12;
+		else if (hh > 12) hh -= 12;
+		return mm ? `${hh}:${mm}${suffix}` : `${hh}${suffix}`;
+	});
+	return out;
+}
+
+export interface TimeInferenceContext {
+	subject?: string;
+	body?: string;
+	title?: string;
+	description?: string;
+}
+
+export interface InferAmPmResult {
+	time: string;
+	note: string; // "" when the time was explicit (24-hour normalisation only)
+	confidence: 'high' | 'low';
+}
+
+/**
+ * Deterministic am/pm safety net. Returns a resolved time + note, or null if the
+ * rules cannot decide (caller then leaves the time bare -> parseTime rejects it).
+ *
+ * RULES (first match wins) — keep this list SMALL and documented:
+ *   R0. Explicit 24-hour time ("15:30")           -> respected as-is, reformatted to
+ *                                                     12-hour, confidence "high", no note.
+ *   R1. context has "dinner" / "evening" / "tonight" -> PM
+ *   R2. context has "afterschool" / "after school" / "dismissal" / "pickup" /
+ *       "pick up" / "pick-up" / "practice" / "rehearsal", AND every start hour in
+ *       the time is 1–6                            -> PM
+ *   R3. context has "breakfast" / "drop-off" / "drop off" / "dropoff" /
+ *       "before school" / "morning"               -> AM
+ *   Otherwise                                     -> null (stays ambiguous)
+ *
+ * A bare range like "3-5" is only resolved when a rule above fires on the context;
+ * with no context keyword it stays ambiguous, exactly as before.
+ */
+export function inferAmPm(timeStr: string | null | undefined, context: TimeInferenceContext = {}): InferAmPmResult | null {
+	if (!timeStr || !timeStr.trim()) return null;
+	const raw = timeStr.trim();
+
+	// Already has am/pm — nothing to infer.
+	if (MERIDIEM_RE.test(raw)) return null;
+
+	// R0: explicit 24-hour time — honour it, no inference note.
+	const as24h = normalize24Hour(raw);
+	if (as24h) return { time: as24h, note: '', confidence: 'high' };
+
+	// Need at least one clock number to work with.
+	const firstNum = raw.match(/\d{1,2}/);
+	if (!firstNum) return null;
+	const startHour = parseInt(firstNum[0], 10);
+
+	const ctx = [context.subject, context.body, context.title, context.description]
+		.filter(Boolean)
+		.join(' ')
+		.toLowerCase();
+	if (!ctx) return null;
+
+	const applySuffix = (suffix: 'am' | 'pm', reason: string): InferAmPmResult => ({
+		// Append the suffix once, at the end — parseTime() then propagates it to
+		// both ends of a range ("3:30-5:30" -> "3:30-5:30pm").
+		time: `${raw}${suffix}`,
+		note: `Read "${raw}" as ${suffix.toUpperCase()} — ${reason}.`,
+		confidence: 'low',
+	});
+
+	// R1: evening keywords -> PM
+	if (/\b(dinner|evening|tonight)\b/.test(ctx)) {
+		return applySuffix('pm', 'the email mentions an evening event');
+	}
+
+	// R2: afterschool / activity keywords + a 1–6 start hour -> PM
+	if (/\b(afterschool|after school|dismissal|pick[\s-]?up|practice|rehearsal)\b/.test(ctx)) {
+		if (startHour >= 1 && startHour <= 6) {
+			return applySuffix('pm', 'the email describes an afterschool / pickup / practice activity');
+		}
+	}
+
+	// R3: morning keywords -> AM
+	if (/\b(breakfast|drop[\s-]?off|before school|morning)\b/.test(ctx)) {
+		return applySuffix('am', 'the email mentions a morning event');
+	}
+
+	return null;
+}
+
+/**
+ * Walks the events Gemini returned and, for any event whose Time still lacks an
+ * am/pm, tries the deterministic safety net using the email context. Mutates each
+ * event in place: sets Time (with suffix), TimeInferenceNote, TimeConfidence.
+ * Called once in the production pipeline (index.ts) before the report is built,
+ * so both the report email and the calendar URL read the same resolved Time.
+ */
+export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceContext = {}): void {
+	for (const event of events) {
+		const time = (event.Time || '').trim();
+		if (!time) {
+			event.TimeConfidence = event.TimeConfidence || 'high';
+			continue;
+		}
+
+		// Gemini already inferred and explained it — trust that, don't re-run heuristics.
+		if (event.TimeInferenceNote && event.TimeInferenceNote.trim()) {
+			event.TimeConfidence = event.TimeConfidence || 'low';
+			continue;
+		}
+
+		// Explicit am/pm already present — high confidence, nothing to surface.
+		if (MERIDIEM_RE.test(time)) {
+			event.TimeConfidence = event.TimeConfidence || 'high';
+			continue;
+		}
+
+		const inferred = inferAmPm(time, { ...context, title: event.Title, description: event.Description });
+		if (inferred) {
+			event.Time = inferred.time;
+			event.TimeConfidence = inferred.confidence;
+			if (inferred.note) event.TimeInferenceNote = inferred.note;
+		} else {
+			// Could not resolve — leave Time bare. parseTime() will reject it and the
+			// report shows the existing ⚠️ "please specify am or pm" error.
+			event.TimeConfidence = 'low';
+		}
+	}
+}
+
 export function applyTime(dateObj: Date, timeStr: string): Date {
 	// Applies a time string like "3:30pm" to a Date object using UTC-only methods
 	// CRITICAL: Use setUTCHours() NOT setHours() to avoid timezone shifts

@@ -108,7 +108,14 @@ export function buildReportEmail(
 		const calendarLink = typeof calendarLinkOrError === 'string' ? calendarLinkOrError : null;
 		const calendarError = typeof calendarLinkOrError === 'string' ? null : calendarLinkOrError.error;
 		const formattedDate = formatDateWithDay(event.Date);
-		const timeStr = event.Time ? `· ${event.Time}` : '';
+		// An am/pm suffix that the sender did NOT write is always flagged, so a wrong
+		// guess is easy to spot. TimeInferenceNote is set (by Gemini or the heuristic
+		// safety net) only when a suffix was inferred.
+		const timeInferred = !!(event.TimeInferenceNote && event.TimeInferenceNote.trim());
+		const timeStr = event.Time ? `· ${event.Time}${timeInferred ? ' (inferred from context)' : ''}` : '';
+		const timeNoteStr = timeInferred
+			? `<div style="font-size:12px; color:#92600A; margin: 6px 0 4px;">⚠ ${event.TimeInferenceNote}</div>`
+			: '';
 		const locationStr = event.Location
 			? `<div style="color:#8A9A8A; font-size:13px; margin-top:2px;"><span style="font-style:italic;">at</span> ${event.Location}</div>`
 			: '';
@@ -137,6 +144,7 @@ export function buildReportEmail(
           <div style="font-weight: bold; font-size: 17px; color: #1a1a1a;">${event.Title}</div>
           <div style="color: #8A9A8A; font-size: 14px; margin-top: 4px;">${formattedDate} ${timeStr}</div>
           ${locationStr}
+          ${timeNoteStr}
           ${warningStr}
           ${contextStr}
           ${errorWarning}
@@ -152,6 +160,7 @@ export function buildReportEmail(
           <div style="font-weight: bold; font-size: 17px; color: #1a1a1a;">${event.Title}</div>
           <div style="color: #8A9A8A; font-size: 14px; margin-top: 4px;">${formattedDate} ${timeStr}</div>
           ${locationStr}
+          ${timeNoteStr}
           ${errorWarning}
           ${descStr}
           ${calendarButtonHtml}

@@ -49,7 +49,9 @@ export async function callGeminiVisionAI(
 Extract events from this content into a JSON array "events". For each event include:
 - Title: short event name
 - Date: full date in "Mmm D, YYYY" format (e.g. "Aug 10, 2026"). Use ${currentYear} if no year is specified. For date ranges use "Aug 10, 2026 - Aug 20, 2026".
-- Time: start and end time if mentioned, otherwise ""
+- Time: start and end time if mentioned, otherwise "". If a time is written without am/pm (e.g. "3:30", "6 o'clock", "dinner at 6") but the surrounding text makes the meaning unmistakable, add the correct am/pm to this value. Use cues like "afterschool", "pickup", "dismissal", "practice", "rehearsal", "dinner", "evening", "tonight", "after work" (PM) and "breakfast", "drop-off", "morning", "before school", "assembly" (AM). If the context does NOT make it clear, leave the time exactly as written with no am/pm — never guess blindly. Respect an explicit 24-hour time (e.g. "15:30") as written.
+- TimeConfidence: "high" if the start time's am/pm was explicitly written OR is unmistakable from context; "low" if a time is present with no am/pm and the context does not make it obvious. Use "high" when there is no time at all.
+- TimeInferenceNote: if you added an am/pm that was NOT explicitly written in the email, one short sentence naming the time and why you chose am or pm (e.g. 'Read "3:30" as PM because it is an afterschool pickup'). Otherwise "".
 - Location: physical location if mentioned, otherwise ""
 - Description: 1-2 sentence summary of what the event is and anything attendees need to know (bring, do, sign up for, etc.)
 - RequiredItems: any items to bring

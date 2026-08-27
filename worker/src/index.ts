@@ -13,7 +13,7 @@ import PostalMime from 'postal-mime';
 import type { MediaPart, ScoutEvent } from './types';
 import { isAlreadyProcessed, markProcessed, getWelcomedList, addWelcomedUser, trackUsage } from './storage';
 import { looksLikeEvent, callGeminiVisionAI } from './gemini';
-import { formatDateCleanly } from './calendar-utils';
+import { formatDateCleanly, resolveEventTimes } from './calendar-utils';
 import { buildReportEmail, buildFallbackEmail, buildErrorAlertEmail, buildCircuitBreakerAlertEmail, buildGmailPermissionDiagnosticEmail } from './email-templates';
 import { sendEmail, sendEmailBypassingBreaker, CircuitBreakerTrippedError } from './email-sender';
 import { logExecution } from './debug-log';
@@ -142,6 +142,13 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 	// 5. Route response.
 	try {
 		if (aiResponse.events && aiResponse.events.length > 0) {
+			// AM/PM safety net: for any event Gemini left with a bare time (no am/pm),
+			// try the deterministic keyword rules against the email context. Any suffix
+			// added here (or by Gemini) is surfaced in the report as "(inferred from
+			// context)" — never applied silently. Times that still can't be resolved
+			// stay bare and hit the existing ⚠️ ambiguous-time error.
+			resolveEventTimes(aiResponse.events, { subject: emailSubject, body: emailBody });
+
 			const usageCount = await trackUsage(env.CALENDAR_SCOUT_KV, senderEmail);
 			const shouldIncludeFeedback = usageCount === SURVEY_AT_USE_COUNT;
 
