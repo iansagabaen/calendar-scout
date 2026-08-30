@@ -3,6 +3,7 @@ name: Deploy Calendar Scout
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test-and-deploy:
