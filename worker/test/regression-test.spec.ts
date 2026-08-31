@@ -192,6 +192,45 @@ describe('scheduled() — nightly regression test', () => {
 		expect(resendCalls[0].html).toContain('missing a Date');
 	});
 
+	it('does NOT fail the nightly run when Gemini returns an event whose Time is a bare meridiem ("PM")', async () => {
+		// Regression for 2026-08-30: real Gemini returned Time: "PM" (no clock time)
+		// for the Pinecrest "soccer game … right after school lets out" line, and
+		// createCalendarUrl() -> parseTime("PM") produced "Could not parse time \"PM\"",
+		// which validateCalendarUrls() surfaced as a nightly failure. A lone meridiem
+		// must now degrade to an all-day event, so the run stays green.
+		const resendCalls: any[] = [];
+		global.fetch = vi.fn(async (url: any, init?: any) => {
+			const urlStr = String(url);
+			if (urlStr.includes('generativelanguage.googleapis.com')) {
+				if (requestHasMedia(init)) {
+					return geminiSuccessResponse([{ Title: 'Founders Park Community Potluck', Date: 'Aug 8, 2026', Time: '11am' }]);
+				}
+				return geminiSuccessResponse([
+					{ Title: 'Fall Book Fair', Date: 'Sep 14, 2026', Time: '3:00-5:30pm' },
+					{ Title: 'Picture Day', Date: 'Sep 17, 2026' },
+					{ Title: '4th/5th Grade Soccer Game vs Cedar Valley', Date: 'Sep 1, 2026', Time: 'PM' },
+				]);
+			}
+			if (urlStr.includes('api.resend.com')) {
+				resendCalls.push(JSON.parse(init.body));
+				return new Response(JSON.stringify({ id: 'x' }), { status: 200 });
+			}
+			throw new Error('Unexpected fetch to ' + urlStr);
+		}) as any;
+
+		const logSpy = vi.spyOn(console, 'log');
+
+		const ctx = createExecutionContext();
+		await worker.scheduled!({} as any, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		// No alert email, and both samples logged SUCCESS.
+		expect(resendCalls.length).toBe(0);
+		const executionLogLines = logSpy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('scout_execution'));
+		expect(executionLogLines.length).toBe(2);
+		expect(executionLogLines.every((l) => l.includes('"status":"SUCCESS"'))).toBe(true);
+	});
+
 	it('sends a failure alert when the Gemini call throws entirely for a sample', async () => {
 		const resendCalls: any[] = [];
 		global.fetch = vi.fn(async (url: any, init?: any) => {

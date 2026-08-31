@@ -40,6 +40,14 @@ export function parseTime(timeStr: string | null | undefined): { start: string; 
 	// STRICT mode: rejects ambiguous input
 	if (!timeStr) return null;
 
+	// A lone meridiem — "PM", " am ", "p.m." — with no clock digits is NOT a time.
+	// Real Gemini has been seen to emit a bare "PM" as an event's Time when the
+	// source implies an afternoon event but names no actual clock time (see
+	// LONE_MERIDIEM_RE below / research/2026-08-30-nightly-regression-bare-meridiem-fix.md).
+	// Treat it as "no time given" so callers fall back to an all-day event instead
+	// of hitting the hard "Could not parse time" error at the end of this function.
+	if (LONE_MERIDIEM_RE.test(timeStr)) return null;
+
 	// Check for range format (with explicit "to" or "-")
 	// This regex captures: time1 (with optional am/pm), range delimiter, time2 (with optional am/pm), and optional trailing am/pm
 	const rangeMatch = timeStr.match(/(\d{1,2}(?::\d{2})?)(?:\s*(am|pm))?\s*(?:to|-)\s*(\d{1,2}(?::\d{2})?)(?:\s*(am|pm))?\s*(am|pm)?/i);
@@ -105,6 +113,17 @@ export function parseTime(timeStr: string | null | undefined): { start: string; 
 // am or pm" error — never silently defaulted.
 
 const MERIDIEM_RE = /(a\.?m\.?|p\.?m\.?)/i;
+
+// A string that is ONLY a meridiem ("PM", " am ", "p.m.") with no clock digits.
+// Gemini's prompt tells it to "add the correct am/pm to this value" when context
+// makes an event's time-of-day clear; applied to an event that has NO stated
+// clock time (e.g. "kickoff is usually right after school lets out"), real Gemini
+// has returned Time: "PM". That is not a usable time — parseTime() would fall all
+// the way through to its "Could not parse time" error and createCalendarUrl()
+// would hand that error back (this crashed the 2026-08-30 nightly regression).
+// It must be treated as "no time given" -> all-day event. MERIDIEM_RE alone can't
+// do this job: it also (correctly) matches "3:30pm", so the anchors here matter.
+const LONE_MERIDIEM_RE = /^\s*(a\.?m\.?|p\.?m\.?)\s*$/i;
 
 /**
  * If `timeStr` is an explicit 24-hour time (a start hour of 0 or 13–23 appears),
@@ -198,6 +217,11 @@ function prettyMeridiem(t: string): string {
 export function inferAmPm(timeStr: string | null | undefined, context: TimeInferenceContext = {}): InferAmPmResult | null {
 	if (!timeStr || !timeStr.trim()) return null;
 	const raw = timeStr.trim();
+
+	// No digits at all — a bare "PM", or stray prose. There is nothing to attach a
+	// suffix to, so never synthesize a value (that is how a bare "PM" would have
+	// become the un-parseable "PMpm"). Bail before any rule runs.
+	if (!/\d/.test(raw)) return null;
 
 	// Already carries an explicit am/pm — nothing to infer.
 	if (MERIDIEM_RE.test(raw)) return null;
@@ -304,6 +328,17 @@ export function resolveEventTimes(events: ScoutEvent[], context: TimeInferenceCo
 		const time = (event.Time || '').trim();
 		if (!time) {
 			event.TimeConfidence = event.TimeConfidence || 'high';
+			continue;
+		}
+
+		// Gemini sometimes returns a bare meridiem ("PM") as Time when the source
+		// implies an afternoon/evening event but names no clock time. That is not a
+		// time — normalise it to "no time" (all-day, high confidence) here so it can
+		// never reach parseTime()/createCalendarUrl() as the un-parseable string "PM"
+		// (nor be mistaken for a fully-qualified time by the MERIDIEM_RE check below).
+		if (LONE_MERIDIEM_RE.test(time)) {
+			event.Time = '';
+			event.TimeConfidence = 'high';
 			continue;
 		}
 

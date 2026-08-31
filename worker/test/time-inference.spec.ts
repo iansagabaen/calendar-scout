@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { inferAmPm, normalize24Hour, resolveEventTimes, parseTime, createCalendarUrl } from '../src/calendar-utils';
 import { buildReportEmail } from '../src/email-templates';
+import { checkCalendarUrlWellFormed } from '../src/regression-test';
 import type { ScoutEvent } from '../src/types';
 
 // Deterministic AM/PM resolution for the newsletter / announcement domain.
@@ -373,6 +374,68 @@ describe('report email surfaces inferred times', () => {
 		const { html } = buildReportEmail(events, 'Unknown', 'Sep 1, 2026', false, 'summary');
 		expect(html).toContain('Calendar date error');
 		expect(html).toMatch(/ambiguous/i);
+	});
+});
+
+describe('bare meridiem as Time ("PM") — no crash, resolves to an all-day event', () => {
+	// Regression: the 2026-08-30 nightly regression test failed because real Gemini
+	// returned Time: "PM" (a meridiem, no clock time) for the Pinecrest "soccer
+	// game … kickoff is usually right after school lets out" line. parseTime("PM")
+	// fell through to its "Could not parse time" error and createCalendarUrl()
+	// handed that back. A lone meridiem now means "no time given" -> all-day.
+
+	it('parseTime() treats a lone "PM" / " pm " / "AM" / "p.m." as no time (null), not an error', () => {
+		expect(parseTime('PM')).toBeNull();
+		expect(parseTime(' pm ')).toBeNull();
+		expect(parseTime('AM')).toBeNull();
+		expect(parseTime('p.m.')).toBeNull();
+	});
+
+	it('parseTime() still rejects a real bare clock time with no am/pm (genuine ambiguity kept)', () => {
+		const r = parseTime('3:30');
+		expect(typeof r === 'object' && r !== null && 'error' in r).toBe(true);
+	});
+
+	it('inferAmPm() never synthesizes a value from a digit-less string', () => {
+		expect(inferAmPm('PM')).toBeNull();
+		expect(inferAmPm(' pm ', { body: 'afterschool pickup, dinner, tonight' })).toBeNull();
+		expect(inferAmPm('AM', { body: 'breakfast drop-off' })).toBeNull();
+	});
+
+	it('resolveEventTimes() strips a bare "PM" Time to "" and marks the event all-day / high confidence', () => {
+		const events: ScoutEvent[] = [{ Title: '4th/5th Grade Soccer Game vs Cedar Valley', Date: 'Sep 1, 2026', Time: 'PM' }];
+		resolveEventTimes(events, { body: "I don't have the exact kickoff time locked down yet but it's usually right after school lets out" });
+		expect(events[0].Time).toBe('');
+		expect(events[0].TimeConfidence).toBe('high');
+	});
+
+	it('createCalendarUrl() returns a valid all-day URL (NOT an error) for an event whose Time is a bare "PM"', () => {
+		const event: ScoutEvent = { Title: '4th/5th Grade Soccer Game vs Cedar Valley', Date: 'Sep 1, 2026', Time: 'PM' };
+		const url = createCalendarUrl(event, 'Fwd: Pinecrest Panthers Weekly Update', 'Aug 30, 2026');
+		expect(typeof url).toBe('string');
+		expect(url as string).toContain('https://www.google.com/calendar/render?action=TEMPLATE');
+		expect(url as string).toContain('dates=20260901/20260902'); // all-day span, not a time error
+	});
+
+	it('Pinecrest-style "soccer game, no clock time" produces a usable all-day calendar entry end to end', () => {
+		// Mirrors what the nightly regression harness does: Gemini output -> resolveEventTimes
+		// (production path) -> createCalendarUrl -> the same well-formed-URL check the
+		// nightly test uses (checkCalendarUrlWellFormed in regression-test.ts).
+		const events: ScoutEvent[] = [
+			{
+				Title: '4th/5th Grade Soccer Game vs Cedar Valley',
+				Date: 'Sep 1, 2026',
+				Time: 'PM',
+				Description: 'First home game against Cedar Valley — everyone welcome to come cheer.',
+			},
+		];
+		resolveEventTimes(events, {
+			subject: 'Fwd: Pinecrest Panthers Weekly Update',
+			body: "the 4th/5th grade soccer team has their first home game next Tuesday against Cedar Valley … it's usually right after school lets out",
+		});
+		const result = createCalendarUrl(events[0], 'Fwd: Pinecrest Panthers Weekly Update', 'Aug 30, 2026');
+		expect(typeof result).toBe('string');
+		expect(checkCalendarUrlWellFormed(result as string, 'soccer game')).toBeNull();
 	});
 });
 
