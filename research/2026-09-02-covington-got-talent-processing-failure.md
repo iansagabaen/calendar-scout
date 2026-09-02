@@ -124,11 +124,95 @@ The one part of today's deploy that CAN be implicated is the **prompt change in
 complicated the Time-field instructions. Whether that is the cause depends on the
 Cloudflare logs for the 09:54 execution — see next section (in progress).
 
-## Cloudflare logs — (in progress)
+## Cloudflare logs — the 09:54 execution
 
-## Root cause — (in progress)
+Worker Observability, account `0ac77d59…`, `calendar-scout-worker` production.
+Single invocation, requestId `30c2e868a8701735708bec4601df1fa7`,
+**Worker version `29f3fb76-fe6e-4702-ac68-424d3c92d9a0`** (the current active
+deployment — one deploy *after* `479d06af`). Email: mailFrom `cnakasuji@gmail.com`,
+rcptTo `forward@sendtoschedule.com`, rawSize 25477. Six log lines,
+2026-09-02 09:53:59–09:54:00 PDT:
 
-## The fix — (in progress)
+| # | ts (PDT) | line |
+|---|----------|------|
+| 1 | 09:53:59.821 | `gemini_usage` — model `gemini-2.5-flash`, promptTokens 3086, **candidatesTokens 807**, totalTokens 6543, hadMediaParts false |
+| 2 | 09:53:59.821 | `AI Error: SyntaxError: Expected ',' or '}' after property value in JSON at position 642 (line 16 column 5)` |
+| 3 | 09:53:59.919 | `gemini_error` — model `gemini-2.0-flash-001`, **status 404**: *"This model models/gemini-2.0-flash-001 is no longer available. Please update your code to use models/gemini-3.6-flash …"* |
+| 4 | 09:54:00.004 | `gemini_error` — model `gemini-2.0-flash-lite`, **status 404**: *"This model models/gemini-2.0-flash-lite is no longer available. Please update your code to use models/gemini-3.5-flash-lite …"* |
+| 5 | 09:54:00.004 | `scout_execution` — status **NO_EVENTS**, eventsFound 0, processingTimeMs 14633, email cnakasuji@gmail.com |
+| 6 | 09:54:00.743 | `forward@sendtoschedule.com` (info) — outbound fallback ("I hit a snag.") email |
+
+So all three models in the fallback chain failed:
+
+1. **`gemini-2.5-flash` (primary): HTTP 200 but the body was not valid JSON.**
+   `candidatesTokenCount` 807 is a complete, non-truncated completion, so this was
+   a **malformed** payload, not a length cutoff — an unescaped character around
+   line 16 / byte 642. The Covington email is unusually quote-dense (`"audition"`,
+   `"Auditions"`, `"talent"`, `"Coming soon…."`, `'auditions'`); the overwhelmingly
+   likely trigger is Gemini copying one of those quoted phrases verbatim into a
+   string field (`DateContext` — "copied verbatim" — or `Description`) **without
+   escaping the inner `"`**, which produces exactly `Expected ',' or '}' after
+   property value`. `JSON.parse` throws → caught by `catch (e)` → `console.log('AI Error: …')` → loop continues.
+2. **`gemini-2.0-flash-001` (fallback 2): HTTP 404 — Google has deprecated it.**
+3. **`gemini-2.0-flash-lite` (fallback 3): HTTP 404 — Google has deprecated it.**
+
+`callGeminiVisionAI` exhausts the loop → `return { events: [], summary: 'I hit a snag.' }`.
+
+## Root cause
+
+**Exact chain:** `worker/src/gemini.ts` → `callGeminiVisionAI()` model loop.
+`MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash-lite']`.
+
+- Model 1 returns 200; `JSON.parse(cleanJson)` inside the `try` throws
+  `SyntaxError` (malformed JSON from Gemini for this quote-heavy input). The
+  `catch (e)` swallows it and the loop moves on.
+- Models 2 and 3 are **both dead (404)** — Google retired `gemini-2.0-flash-001`
+  and `gemini-2.0-flash-lite`. The fallback chain has been non-functional since
+  that deprecation; nothing in the app noticed because a 404 just logs
+  `gemini_error` and continues.
+- Loop ends → `{ events: [], summary: 'I hit a snag.' }`.
+- `index.ts` sees `events.length === 0` → **`else` branch** → `logExecution(… 'NO_EVENTS' …)`
+  (note: NOT `ERROR`, so **no alert fired to Ian** — the bug was invisible until a
+  user complained) → `sendFallbackGuarded(…, 'I hit a snag.', …)`.
+- `buildFallbackEmail()` → subject `Calendar Scout: Couldn't process "<subject>"`,
+  body `<p>I hit a snag.</p>`.
+
+**Were today's AM/PM / bare-meridiem changes implicated? NO (not decisively).**
+The bare-meridiem fix (`479d06af` / commit `7c881b0`) and the earlier AM/PM
+inference work live in `calendar-utils.ts` (`resolveEventTimes` / `inferAmPm` /
+`parseTime`), which only runs when `events.length > 0`. Here `events` was empty,
+so that code never executed. The only file touched by today's deploy that sits in
+the failure path is `gemini.ts` (same commit lengthened the Time-field prompt
+instructions). A longer, more demanding prompt with verbatim-copy fields can
+*raise the odds* of model 1 emitting slightly-malformed JSON, so it is a possible
+*contributing* factor to step 1 — but it is not the decisive cause: the decisive
+cause is the **dead fallback chain**, which predates today. Without the 404s,
+model 2 or 3 would have parsed successfully and returned the three events.
+
+## The fix
+
+All in `worker/src/gemini.ts` (+ a 1-line `types.ts` field, + `index.ts`
+alerting, + a nightly fixture). See the committed diff. Summary:
+
+1. **Live model chain.** `MODELS` → `['gemini-2.5-flash', 'gemini-2.5-flash-lite']`.
+   The two `gemini-2.0-flash-*` names that now 404 are removed; both replacements
+   are current, non-deprecated 2.5-family models.
+2. **Force valid JSON.** The Gemini request now sends
+   `generationConfig: { responseMimeType: 'application/json' }`, which constrains
+   decoding to syntactically valid JSON and directly prevents the
+   unescaped-quote-in-`DateContext` failure that broke this email.
+3. **Tolerant parse + one same-model retry.** `extractJson()` strips fences,
+   pulls the outermost `{…}`, and removes trailing commas before `JSON.parse`. If
+   a 200 response still won't parse, the same model is retried once (LLM
+   nondeterminism usually clears it) before falling through.
+4. **No more silent failure.** On total model-loop exhaustion `callGeminiVisionAI`
+   returns `{ events: [], summary: <clear, actionable message>, error: <detail> }`.
+   `index.ts` now logs that as `ERROR` and fires the standard error alert to Ian,
+   and the user gets a message that says extraction failed and to retry —
+   not the contentless "I hit a snag."
+5. **Nightly guard.** A Covington "Got Talent" text sample is added to
+   `REGRESSION_CASES` so the 03:00 UTC nightly test (real Gemini) covers this
+   input shape from now on and would catch a repeat model deprecation.
 
 ## Tests — (in progress)
 
