@@ -235,12 +235,29 @@ alerting, + a nightly fixture). See the committed diff. Summary:
 
 ## Deploy + verification
 
-- Commit `<filled at STEP 7>` on `iansagabaen/calendar-scout` `main`, pushed.
-- CI (`gh workflow run deploy.yml`) run `<id>` → `<result>`; new Worker Version
-  ID `<id>` (≠ `479d06af…`, ≠ `29f3fb76…`).
-- STEP 8: `GET /admin/smoke-test` → `<result>`; deployed-path check → `<result>`.
-  Live end-to-end against real Gemini lands at the next 03:00 UTC nightly run,
-  which now includes the Covington "Got Talent" sample.
+- Commit **`b7581e4`** on `iansagabaen/calendar-scout` `main`, pushed
+  (`adaead5..b7581e4`, includes the two earlier progress-doc commits).
+- CI: `gh workflow run deploy.yml` run
+  [`33687842993`](https://github.com/iansagabaen/calendar-scout/actions/runs/33687842993)
+  → **success** (`gh run watch … --exit-status` exit 0; tests + `wrangler deploy`
+  both green). A `push`-triggered run of the same SHA
+  ([`33687832875`](https://github.com/iansagabaen/calendar-scout/actions/runs/33687832875))
+  also succeeded moments earlier — identical code.
+- New Worker Version IDs (same commit, two runs): push run
+  `d364e6d4-1240-4226-807a-1f644aa0aec6`, then dispatch run
+  **`9e32267f-02c9-4fd5-b866-f6f9fe44677b`** (last write → currently live).
+  Both ≠ `479d06af…` and ≠ `29f3fb76…` (the version that failed).
+- **STEP 8 proof.** `GET https://calendar-scout-worker.iansagabaen.workers.dev/admin/smoke-test`
+  with the `X-Admin-Secret` header → **HTTP 200 `{"ok":true,"eventCount":1,"tookMs":1978}`**.
+  This runs the real `callGeminiVisionAI` (primary `gemini-2.5-flash`) through the
+  deployed code, so it confirms the new `generationConfig.responseMimeType`
+  request shape + `extractJson` parse path work end-to-end against live Gemini.
+  There is no `/admin` endpoint that accepts arbitrary sample text, so the full
+  Covington-text end-to-end against the live model is covered by (a) the new
+  `worker/` test suite (114 passing) run in CI against the built worker, and
+  (b) the **next 03:00 UTC nightly regression run**, which now includes the
+  `QUOTE_DENSE_ANNOUNCEMENT_SAMPLE` (Covington "Got Talent") and would alert Ian
+  if extraction of it ever returns < 2 events again.
 
 ## Were today's earlier deploys implicated?
 
