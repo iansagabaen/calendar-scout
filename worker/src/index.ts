@@ -175,6 +175,20 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 				await addWelcomedUser(env.CALENDAR_SCOUT_KV, senderEmail, welcomedList);
 				await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_ftux_welcome_sent', {});
 			}
+		} else if (aiResponse.error) {
+			// Extraction HARD-failed (every Gemini model errored) — this is not a
+			// clean "no events in this email". Log + alert as an error so a systemic
+			// break (e.g. a model deprecation, like the 2026-09-02 Covington failure)
+			// can't hide behind a user-facing "couldn't process". User still gets the
+			// (now informative) fallback message.
+			const processingTime = Date.now() - startTime;
+			logExecution(senderEmail, 'ERROR', 0, aiResponse.error, processingTime);
+			await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_processing_error', {
+				processingTimeMs: processingTime,
+				error: aiResponse.error,
+			});
+			await sendErrorAlert(env, senderEmail, 'ERROR', aiResponse.error, processingTime);
+			await sendFallbackGuarded(env, senderEmail, aiResponse.summary, isFirstTime, emailSubject);
 		} else {
 			const processingTime = Date.now() - startTime;
 			logExecution(senderEmail, 'NO_EVENTS', 0, aiResponse.summary || 'No events found', processingTime);

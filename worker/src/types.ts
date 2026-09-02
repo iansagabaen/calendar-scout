@@ -65,6 +65,11 @@ export interface GeminiResult {
 	is_relevant?: boolean;
 	events: ScoutEvent[];
 	summary: string;
+	// Set only when extraction HARD-failed (every model in the fallback chain
+	// errored). Distinguishes "the AI broke" from a clean "no events in this
+	// email" so index.ts can log it as ERROR and alert, instead of the silent
+	// NO_EVENTS path that hid the 2026-09-02 Covington failure.
+	error?: string;
 }
 
 export type ExecutionStatus = 'SUCCESS' | 'NO_EVENTS' | 'FILTERED_OUT' | 'ERROR';

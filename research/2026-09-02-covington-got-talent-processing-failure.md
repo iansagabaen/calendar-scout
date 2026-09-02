@@ -214,6 +214,40 @@ alerting, + a nightly fixture). See the committed diff. Summary:
    `REGRESSION_CASES` so the 03:00 UTC nightly test (real Gemini) covers this
    input shape from now on and would catch a repeat model deprecation.
 
-## Tests — (in progress)
+### Files changed
 
-## Deploy + verification — (in progress)
+| File | Change |
+|------|--------|
+| `worker/src/gemini.ts` | `MODELS` → `['gemini-2.5-flash', 'gemini-2.5-flash-lite']` (dead 2.0-flash-* names removed). New exported `extractJson()` (fence-strip + outermost-`{…}` + trailing-comma repair). Model loop refactored: extracted `callOneModel()`, **one same-model retry** on a 200-but-unparseable body, non-200/throw = move on. Request now sends `generationConfig: { responseMimeType: 'application/json' }`. Terminal return is now `{ events: [], summary: <clear, actionable>, error: 'all Gemini models failed: …' }` instead of `summary: 'I hit a snag.'`. |
+| `worker/src/types.ts` | `GeminiResult.error?: string` added. |
+| `worker/src/index.ts` | New `else if (aiResponse.error)` branch in `processEmail`: logs `ERROR` (not `NO_EVENTS`), fires `capture(...processing_error)` + `sendErrorAlert(...)` to Ian, then still sends the (now informative) user fallback. Closes the "silent, no alert" gap. |
+| `worker/src/regression-samples.ts` | New `QUOTE_DENSE_ANNOUNCEMENT_SAMPLE` (real Covington "Got Talent" text, boilerplate trimmed), `minExpectedEvents: 2`, added to `REGRESSION_CASES` → nightly real-Gemini test now covers this input. |
+| `worker/test/gemini.spec.ts` | **New file, 12 tests.** `extractJson` (5) + `callGeminiVisionAI` resilience (7): responseMimeType sent; same-model retry on bad JSON; fall-through to next model; 404 not retried; **all-models-fail returns explicit `error`, not `'I hit a snag.'`**; fenced-JSON still parses; deprecated model names gone. |
+| `worker/test/index.spec.ts` | +2 end-to-end tests: (a) a quote-dense "Got Talent" announcement → full multi-event `Scout Report:` with ≥3 calendar links, never "Couldn't process"; (b) every Gemini model 404 → Ian gets the error alert and the run logs `ERROR`, not `NO_EVENTS`. Also fixed one pre-existing mislabelled "pre-filter" test whose body (`"…without event signals."`) actually contained the token `event` and so hit the AI path — body swapped for a genuinely signal-free string. |
+| `worker/test/regression-test.spec.ts` | Count assertions updated for the 3rd regression case (`geminiCalls` 2→3, `textCalls` 1→2, `executionLogLines` 2→3 in two places). No tests removed. |
+
+## Tests
+
+- `npx vitest run` (full `worker/` suite): **100 → 114 passing**, 0 failing.
+  (+12 in the new `test/gemini.spec.ts`, +2 in `test/index.spec.ts`.)
+- `npx tsc --noEmit`: only the known pre-existing `src/test.ts(128,4)` error
+  (`string | null` vs `string | undefined`) — unchanged by this work, acceptable.
+
+## Deploy + verification
+
+- Commit `<filled at STEP 7>` on `iansagabaen/calendar-scout` `main`, pushed.
+- CI (`gh workflow run deploy.yml`) run `<id>` → `<result>`; new Worker Version
+  ID `<id>` (≠ `479d06af…`, ≠ `29f3fb76…`).
+- STEP 8: `GET /admin/smoke-test` → `<result>`; deployed-path check → `<result>`.
+  Live end-to-end against real Gemini lands at the next 03:00 UTC nightly run,
+  which now includes the Covington "Got Talent" sample.
+
+## Were today's earlier deploys implicated?
+
+**No.** The bare-meridiem fix (`479d06af` / `7c881b0`) and the AM/PM inference
+work are in `calendar-utils.ts`, which only runs on a non-empty `events` array.
+This failure produced an empty array (the Gemini call itself failed), so that
+code never executed. The only today-deployed file in the failure path is
+`gemini.ts` (prompt lengthening in the same commit) — a *possible minor
+contributor* to model 1's malformed JSON, not the decisive cause. The decisive
+cause — the dead `gemini-2.0-flash-*` fallback chain — predates today's work.

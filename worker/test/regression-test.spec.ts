@@ -66,7 +66,7 @@ describe('scheduled() — nightly regression test', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('runs both fixed samples (text-only and image/PDF-only) through the real Gemini pipeline', async () => {
+	it('runs every fixed sample (two text-only and one image/PDF-only) through the real Gemini pipeline', async () => {
 		const geminiCalls: any[] = [];
 		global.fetch = vi.fn(async (url: any, init?: any) => {
 			const urlStr = String(url);
@@ -87,11 +87,11 @@ describe('scheduled() — nightly regression test', () => {
 		await worker.scheduled!({} as any, env, ctx);
 		await waitOnExecutionContext(ctx);
 
-		expect(geminiCalls.length).toBe(2);
+		expect(geminiCalls.length).toBe(3);
 		const mediaCalls = geminiCalls.filter(requestHasMedia);
 		const textCalls = geminiCalls.filter((c) => !requestHasMedia(c));
 		expect(mediaCalls.length).toBe(1); // the image/PDF-only sample
-		expect(textCalls.length).toBe(1); // the text-only sample
+		expect(textCalls.length).toBe(2); // the two text-only samples
 	});
 
 	it('does not send any email when both samples pass (a passing nightly run should be silent)', async () => {
@@ -121,7 +121,7 @@ describe('scheduled() — nightly regression test', () => {
 		expect(resendCalls.length).toBe(0);
 
 		const executionLogLines = logSpy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('scout_execution'));
-		expect(executionLogLines.length).toBe(2);
+		expect(executionLogLines.length).toBe(3);
 		expect(executionLogLines.every((l) => l.includes('"status":"SUCCESS"'))).toBe(true);
 	});
 
@@ -227,7 +227,7 @@ describe('scheduled() — nightly regression test', () => {
 		// No alert email, and both samples logged SUCCESS.
 		expect(resendCalls.length).toBe(0);
 		const executionLogLines = logSpy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('scout_execution'));
-		expect(executionLogLines.length).toBe(2);
+		expect(executionLogLines.length).toBe(3);
 		expect(executionLogLines.every((l) => l.includes('"status":"SUCCESS"'))).toBe(true);
 	});
 

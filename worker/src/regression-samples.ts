@@ -8,10 +8,13 @@
 // pipeline silently stop extracting events?), far less fragile (no dependency
 // on a live inbox having fresh mail every night).
 //
-// Two cases, matching the two real input shapes the live email() handler sees:
-//   1. TEXT_SAMPLE — a plain-text forwarded newsletter body, no attachments.
-//   2. IMAGE_SAMPLE — an attachment-only forward (empty body), exercising the
-//      Gemini Vision code path (mediaParts) rather than the plain-text path.
+// Cases, matching the real input shapes the live email() handler sees:
+//   1.  TEXT_SAMPLE — a plain-text forwarded newsletter body, no attachments.
+//   1b. QUOTE_DENSE_ANNOUNCEMENT_SAMPLE — a real quote-heavy announcement that
+//       broke extraction in production on 2026-09-02 (malformed model JSON +
+//       dead fallback chain); guards that fix.
+//   2.  IMAGE_SAMPLE — an attachment-only forward (empty body), exercising the
+//       Gemini Vision code path (mediaParts) rather than the plain-text path.
 
 import type { MediaPart } from './types';
 
@@ -62,6 +65,52 @@ Mrs. Delgado, Pinecrest Elementary Front Office`,
 	// the test isn't flaky if the model reasonably merges Spirit Week's themed
 	// days into fewer entries or drops a borderline one.
 	minExpectedEvents: 3,
+};
+
+// --- Case 1b: text-only, quote-dense announcement --------------------------
+//
+// A lightly-trimmed REAL forwarded newsletter (ClassroomParent unsubscribe
+// boilerplate removed; all event content verbatim). Added after the 2026-09-02
+// production failure where a user forwarded this exact email and got back only
+// "I hit a snag.": `gemini-2.5-flash` returned a 200 whose JSON was malformed
+// (an unescaped `"` around one of this text's many quoted words — "audition",
+// "Auditions", "talent"), and both former fallback models had been 404'd by a
+// Google deprecation, so the whole chain failed. See
+// research/2026-09-02-covington-got-talent-processing-failure.md. This case
+// guards the two fixes (responseMimeType JSON + a live fallback chain) against
+// regression, using the real input shape that broke.
+const QUOTE_DENSE_ANNOUNCEMENT_SAMPLE: RegressionCase = {
+	id: 'text-quote-dense',
+	label: 'Text-only quote-dense announcement (Covington "Got Talent" sample)',
+	subject: `[COVINGTON] Coming Soon.....Covington's Got Talent! (9/24 & 9/25)`,
+	body: `Coming soon....Covington's Got Talent! It was such a big hit last year that we need to bring it back again! Covington's Got Talent is our school wide talent show featuring the amazing talents of our Covington Coyotes. The show is open to any students at all grade levels interested in participating. Students will need to "audition" their act, commit to a couple rehearsals including the mandatory dress rehearsal before the big shows. There will be two shows, one for our Covington families and one for students only.
+
+Covington's Got Talent in the Covington Multi
+
+September 24th at 6:00 PM
+
+September 25th at 1:00 PM (Students only)
+
+A MANDATORY dress rehearsal for all performers will take place Friday, September 18 from 3:00 - 5:00 PM in the Multi.
+
+More details:
+
+* Any student can participate. Students are allowed to be in ONE act - either as an individual or as part of group. Each act is limited to 2 minutes maximum.
+* The stage is not huge so all group sizes should be maximum 10-12 students.
+* Anything goes! Playing a musical instrument, magic tricks, singing, dancing, stand up comedy, acrobatics, juggling, etc. However students must spend their allotted time on stage doing something. A "talent" is not just standing there.
+* Students will have access to use the sound system (for music), mic, piano, table, chairs and stage lights.
+* This is not a competition but a showcase of our talented Covington Coyotes.
+* "Auditions" are an opportunity for administration/staff/PTA Executive Board to review acts to ensure they are appropriate for Covington's Got Talent.
+
+Please SIGN UP HERE or click on the link below. The submission cutoff date is September 2nd.
+
+Hope to see you all on stage!`,
+	mediaParts: [],
+	// Two shows (Sep 24, Sep 25) are the hard minimum; the dress rehearsal
+	// (Sep 18) and the sign-up cutoff (Sep 2) are commonly picked up too. Keep
+	// the bar at 2 so it isn't flaky if the model merges or drops a borderline
+	// one, while still failing loudly if extraction returns nothing (the bug).
+	minExpectedEvents: 2,
 };
 
 // --- Case 2: image-only (PDF flyer) -----------------------------------------
@@ -130,4 +179,4 @@ const IMAGE_SAMPLE: RegressionCase = {
 	minExpectedEvents: 1,
 };
 
-export const REGRESSION_CASES: RegressionCase[] = [TEXT_SAMPLE, IMAGE_SAMPLE];
+export const REGRESSION_CASES: RegressionCase[] = [TEXT_SAMPLE, QUOTE_DENSE_ANNOUNCEMENT_SAMPLE, IMAGE_SAMPLE];

@@ -4,7 +4,34 @@
 
 import type { GeminiResult, MediaPart } from './types';
 
-export const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-2.0-flash-lite'];
+// Fallback chain, primary first. Kept to current, non-deprecated models: on
+// 2026-09-02 a real user's forward failed because BOTH former fallbacks
+// (`gemini-2.0-flash-001`, `gemini-2.0-flash-lite`) had been retired by Google
+// and returned 404 — with the primary also hiccupping on that one email, the
+// whole chain was dead. See research/2026-09-02-covington-got-talent-processing-failure.md.
+export const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
+/**
+ * Parse a model's response text into an object. Tolerant of the small
+ * malformations Gemini can still produce: a ```json fence, leading/trailing
+ * prose around the object, or a trailing comma before a closing brace/bracket.
+ * Throws if the text cannot be recovered into valid JSON.
+ */
+export function extractJson(raw: string): unknown {
+	const stripped = raw.replace(/```json|```/g, '').trim();
+	try {
+		return JSON.parse(stripped);
+	} catch {
+		// fall through to recovery
+	}
+	const start = stripped.indexOf('{');
+	const end = stripped.lastIndexOf('}');
+	if (start === -1 || end === -1 || end <= start) {
+		throw new SyntaxError('No JSON object found in model response');
+	}
+	const candidate = stripped.slice(start, end + 1).replace(/,(\s*[}\]])/g, '$1');
+	return JSON.parse(candidate);
+}
 
 export function looksLikeEvent(body: string, subject: string, mediaParts: MediaPart[]): boolean {
 	// Always process if there's an image or PDF attachment (could be a flyer)
@@ -72,63 +99,125 @@ For "summary": one sentence identifying the source (e.g. "From the Covington 6th
 Content: ${text}`;
 
 	const modelsToTry = options.forceModel ? [options.forceModel] : MODELS;
+	const source = options.source || 'unknown';
 
+	let lastFailure = 'no models attempted';
 	for (const modelName of modelsToTry) {
-		try {
-			const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-			const payload = { contents: [{ parts: [{ text: prompt }, ...mediaParts] }] };
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload),
-			});
-
-			if (response.status === 200) {
-				const data = (await response.json()) as any;
-
-				// Every Gemini response includes real token counts -- log them instead
-				// of discarding them, so cost is attributable to what triggered the
-				// call without needing GCP-side per-request logging (which this key
-				// doesn't have enabled). Cheap: one structured line into the same
-				// Workers Logs sink logExecution() already writes to.
-				const usage = data.usageMetadata || {};
-				console.log(
-					JSON.stringify({
-						type: 'gemini_usage',
-						timestamp: new Date().toISOString(),
-						source: options.source || 'unknown',
-						model: modelName,
-						promptTokenCount: usage.promptTokenCount ?? null,
-						candidatesTokenCount: usage.candidatesTokenCount ?? null,
-						totalTokenCount: usage.totalTokenCount ?? null,
-						hadMediaParts: mediaParts.length > 0,
-					})
-				);
-
-				let aiText = data.candidates[0].content.parts[0].text;
-				let cleanJson = aiText.replace(/```json|```/g, '').trim();
-				return JSON.parse(cleanJson);
+		// Up to two attempts per model. A 200 whose body will not parse is retried
+		// once — Gemini is nondeterministic and a second call almost always returns
+		// clean JSON. A non-200 (e.g. a deprecated-model 404) or a thrown fetch is
+		// NOT retried; we move straight to the next model.
+		for (let attempt = 1; attempt <= 2; attempt++) {
+			const outcome = await callOneModel(apiKey, modelName, prompt, mediaParts, source);
+			if (outcome.status === 'ok') return outcome.result;
+			if (outcome.status === 'dead') {
+				lastFailure = `${modelName}: no usable response`;
+				break;
 			}
-
-			// Non-200: previously silent (fell through to the next model with no
-			// trace of why). That made a real failure -- the API key being blocked --
-			// indistinguishable from "just trying the next model down," discovered
-			// the hard way testing this exact function. Body is truncated since
-			// error payloads can occasionally echo back parts of the request.
-			const bodyText = await response.text();
-			console.log(
-				JSON.stringify({
-					type: 'gemini_error',
-					timestamp: new Date().toISOString(),
-					source: options.source || 'unknown',
-					model: modelName,
-					status: response.status,
-					body: bodyText.slice(0, 300),
-				})
-			);
-		} catch (e) {
-			console.log('AI Error: ' + String(e));
+			lastFailure = `${modelName}: response was not valid JSON (attempt ${attempt}/2)`;
 		}
 	}
-	return { events: [], summary: 'I hit a snag.' };
+
+	// Every model failed. Do NOT masquerade this as a clean "no events in this
+	// email" (summary only) — that is exactly how the 2026-09-02 Covington
+	// failure hid for hours with no alert. Return an explicit `error` so the
+	// caller logs it as ERROR, alerts, and tells the user extraction failed.
+	console.log('AI Error: all models exhausted — ' + lastFailure);
+	return {
+		events: [],
+		summary:
+			"I couldn't read that email this time — my text-extraction step didn't return a usable result. This is usually temporary: try forwarding it again in a few minutes, and if it keeps happening, paste the key dates into a plain email.",
+		error: 'all Gemini models failed: ' + lastFailure,
+	};
+}
+
+type ModelAttempt =
+	| { status: 'ok'; result: GeminiResult }
+	| { status: 'retryable' } // 200 received but body unusable — a retry may succeed
+	| { status: 'dead' }; // non-200 or fetch threw — move to the next model
+
+/**
+ * One request to one model. Logs the same `gemini_usage` / `gemini_error` /
+ * `AI Error:` lines the inline loop used to, and never throws.
+ */
+async function callOneModel(
+	apiKey: string,
+	modelName: string,
+	prompt: string,
+	mediaParts: MediaPart[],
+	source: string
+): Promise<ModelAttempt> {
+	try {
+		const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+		const payload = {
+			contents: [{ parts: [{ text: prompt }, ...mediaParts] }],
+			// Constrain decoding to syntactically valid JSON. Without this, Gemini
+			// occasionally emits an unescaped `"` inside a verbatim-copy field
+			// (DateContext / Description) and JSON.parse throws — the 2026-09-02
+			// Covington "Got Talent" failure on a quote-dense newsletter.
+			generationConfig: { responseMimeType: 'application/json' },
+		};
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		});
+
+		if (response.status === 200) {
+			const data = (await response.json()) as any;
+
+			// Every Gemini response includes real token counts -- log them instead
+			// of discarding them, so cost is attributable to what triggered the
+			// call without needing GCP-side per-request logging (which this key
+			// doesn't have enabled). Cheap: one structured line into the same
+			// Workers Logs sink logExecution() already writes to.
+			const usage = data.usageMetadata || {};
+			console.log(
+				JSON.stringify({
+					type: 'gemini_usage',
+					timestamp: new Date().toISOString(),
+					source,
+					model: modelName,
+					promptTokenCount: usage.promptTokenCount ?? null,
+					candidatesTokenCount: usage.candidatesTokenCount ?? null,
+					totalTokenCount: usage.totalTokenCount ?? null,
+					hadMediaParts: mediaParts.length > 0,
+				})
+			);
+
+			const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+			if (typeof aiText !== 'string' || !aiText.trim()) {
+				console.log(`AI Error: 200 response from ${modelName} had no text candidate`);
+				return { status: 'retryable' };
+			}
+			try {
+				return { status: 'ok', result: extractJson(aiText) as GeminiResult };
+			} catch (parseErr) {
+				console.log('AI Error: ' + String(parseErr));
+				return { status: 'retryable' };
+			}
+		}
+
+		// Non-200: previously silent (fell through to the next model with no
+		// trace of why). That made a real failure -- the API key being blocked,
+		// or a model being deprecated -- indistinguishable from "just trying the
+		// next model down," discovered the hard way testing this exact function.
+		// Body is truncated since error payloads can occasionally echo back parts
+		// of the request.
+		const bodyText = await response.text();
+		console.log(
+			JSON.stringify({
+				type: 'gemini_error',
+				timestamp: new Date().toISOString(),
+				source,
+				model: modelName,
+				status: response.status,
+				body: bodyText.slice(0, 300),
+			})
+		);
+		return { status: 'dead' };
+	} catch (e) {
+		console.log('AI Error: ' + String(e));
+		return { status: 'dead' };
+	}
 }
