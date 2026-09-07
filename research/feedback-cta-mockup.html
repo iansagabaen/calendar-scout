@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar Scout — feedback CTA mockups</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #eef1ee; color: #222; margin: 0; padding: 32px 16px; }
+  .page { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 13px; margin: 0 0 28px; }
+  .panel { background: #fff; border: 1px solid #dde3dd; border-radius: 10px; margin: 0 0 22px; overflow: hidden; }
+  .panel > .label { background: #2E4A2E; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 8px 14px; }
+  .panel > .note { font-size: 12.5px; color: #555; padding: 10px 14px 0; }
+  .panel > .rating { font-size: 12px; color: #333; padding: 6px 14px 12px; }
+  .rating b { color: #2E4A2E; }
+  .render { padding: 18px 14px; }
+
+  /* ---- product tone: report email ---- */
+  .email { font-family: Georgia, serif; color: #333; line-height: 1.6; font-size: 15px; }
+  .report-shell { background: #F3F7F3; padding: 20px; border-radius: 20px; }
+  .summary { font-size: 13px; color: #888; margin-bottom: 14px; }
+  .evt-header { font-size: 16px; color: #2E4A2E; margin: 0 0 14px; }
+  .card { background: #fff; border: 1px solid #E0E7E0; border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .card .title { font-weight: bold; font-size: 17px; color: #1a1a1a; }
+  .card .meta { color: #8A9A8A; font-size: 14px; margin-top: 4px; }
+  .card .btn { display: block; background: #2E4A2E; color: #fff; text-align: center; padding: 13px; text-decoration: none; border-radius: 12px; font-weight: bold; margin-top: 12px; }
+  .card.uncertain { background: #FFFBF0; border-color: #F5C542; }
+  .card .warn { font-size: 12px; color: #92600A; margin: 6px 0 4px; }
+
+  .signature { margin: 12px 0 0; }
+  hr.foot { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+  .footer { font-size: 13px; color: #888; }
+  .footer a { color: #2E4A2E; }
+  .footer strong { color: #555; }
+
+  /* feedback variants */
+  .fb-box { background: #F0F8F0; border-left: 4px solid #2E4A2E; padding: 16px; margin: 20px 0; border-radius: 4px; font-size: 14px; color: #333; line-height: 1.6; }
+  .fb-box p { margin: 0 0 4px; }
+  .fb-box .lead { margin-bottom: 8px; }
+  .fb-box .reply { margin-top: 8px; font-size: 13px; color: #555; }
+
+  .react-row { text-align: center; font-size: 14px; color: #555; margin: 4px 0 2px; }
+  .react-row a { display: inline-block; margin: 0 6px; padding: 7px 14px; border: 1px solid #cdd8cd; border-radius: 999px; text-decoration: none; color: #2E4A2E; background: #fff; }
+
+  .footer-row { margin-top: 6px; }
+  .footer-row a { display: inline-block; margin-right: 10px; }
+
+  .oneliner { font-size: 13px; color: #888; margin-top: 10px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Calendar Scout — feedback CTA mockups</h1>
+  <p class="sub">Current footer AS-IS, then the four recommended variants. Same colours / Georgia serif as <code>email-templates.ts</code>. Rendered inline — no live email client. Read each for "gentle / ignorable" vs "naggy / salesy".</p>
+
+  <!-- 0. CURRENT -->
+  <div class="panel">
+    <div class="label">0 · Current footer — AS-IS (every email)</div>
+    <div class="render">
+      <div class="email">
+        <div class="report-shell">
+          <div class="summary">Found 3 events about Fall Carnival, Picture Day, PTA Meeting, and more</div>
+          <h3 class="evt-header">Your events from "Nov Newsletter":</h3>
+          <div class="card">
+            <div class="title">Fall Carnival</div>
+            <div class="meta">Friday, Nov 14 · 5:00 PM</div>
+            <a class="btn" href="#">Add to Calendar</a>
+          </div>
+        </div>
+        <p class="signature">your calendar scout</p>
+        <hr class="foot">
+        <div class="footer">
+          <p><strong>About the scout</strong><br>
+          I am an experimental tool built to help you easily find and add events to your calendar. I am not always perfect, so please check my work.
+          <a href="#">Report an Error</a> | <a href="#">Buy me a coffee</a></p>
+          <p><strong>Privacy</strong><br>
+          I process your text, find your dates, and don't store your data.
+          <a href="#">sendtoschedule.com</a></p>
+        </div>
+      </div>
+    </div>
+    <div class="note">Baseline. The only feedback path today is a generic Google Form link with no context about which email it's about.</div>
+    <div class="rating">Reads as: <b>invisible</b> — genuinely nobody clicks "Report an Error" unless something broke.</div>
+  </div>
+
+  <!-- 1. FOOTER ROW UPGRADE -->
+  <div class="panel">
+    <div class="label">C1 · Upgraded footer row — 👍 / 👎 / tell me more (every email)</div>
+    <div class="render">
+      <div class="email">
+        <p class="signature">your calendar scout</p>
+        <hr class="foot">
+        <div class="footer">
+          <p><strong>How did I do?</strong><br>
+          <span class="footer-row">
+            <a href="mailto:scout@sendtoschedule.com?subject=Scout%20feedback%3A%20nailed%20it">👍 nailed it</a>
+            <a href="mailto:scout@sendtoschedule.com?subject=Scout%20feedback%3A%20missed%20something">👎 missed something</a>
+            <a href="mailto:scout@sendtoschedule.com?subject=Scout%20feedback">✍️ tell me more</a>
+          </span></p>
+          <p><strong>About the scout</strong><br>
+          Experimental tool — I'm not always perfect, so please check my work. <a href="#">Report a bug</a> | <a href="#">Buy me a coffee</a></p>
+          <p><strong>Privacy</strong><br>
+          I process your text, find your dates, and don't store your data. <a href="#">sendtoschedule.com</a></p>
+        </div>
+      </div>
+    </div>
+    <div class="note">Replaces the dead "Report an Error" link with a real one-tap reaction. Pure <code>mailto:</code>, no backend, threads straight back to Ian.</div>
+    <div class="rating">Reads as: <b>gentle / ignorable</b> — same grey weight as the rest of the footer, sits below the signature, easy to skip.</div>
+  </div>
+
+  <!-- 2. ONE-TAP REACTION ROW IN BODY -->
+  <div class="panel">
+    <div class="label">C2 · One-tap reaction row — under the event cards (1st / 3rd report, then never)</div>
+    <div class="render">
+      <div class="email">
+        <div class="report-shell">
+          <div class="summary">Found 3 events about Fall Carnival, Picture Day, PTA Meeting, and more</div>
+          <h3 class="evt-header">Your events from "Nov Newsletter":</h3>
+          <div class="card">
+            <div class="title">Picture Day</div>
+            <div class="meta">Tuesday, Nov 18 · 8:30 AM</div>
+            <a class="btn" href="#">Add to Calendar</a>
+          </div>
+          <div class="react-row">
+            Did this look right?
+            <a href="#">👍 yes</a><a href="#">👎 no</a><a href="#">it missed one</a>
+          </div>
+        </div>
+        <p class="signature">your calendar scout</p>
+      </div>
+    </div>
+    <div class="note">In the body, right below the cards — more visible than the footer. Show it only on the 1st and 3rd report, then stop.</div>
+    <div class="rating">Reads as: <b>gentle but present</b> — borders on medium if shown every email; capped to twice it stays friendly, not naggy.</div>
+  </div>
+
+  <!-- 3. LIFECYCLE ASK -->
+  <div class="panel">
+    <div class="label">C3 · Lifecycle single ask — once, after the 2nd–3rd successful report</div>
+    <div class="render">
+      <div class="email">
+        <div class="report-shell">
+          <div class="summary">Found 2 events about Band Concert, Early Release Day</div>
+          <h3 class="evt-header">Your events from "This Week at Lincoln":</h3>
+          <div class="card">
+            <div class="title">Band Concert</div>
+            <div class="meta">Thursday, Dec 4 · 7:00 PM</div>
+            <a class="btn" href="#">Add to Calendar</a>
+          </div>
+          <div class="fb-box">
+            <p class="lead"><strong>You've used Scout a few times now —</strong> mind if I ask?</p>
+            <p>• What's the most annoying thing about it?</p>
+            <p>• Has a date or time ever been wrong?</p>
+            <p>• What would make you forward the next one without thinking?</p>
+            <p class="reply">Just reply to this email. It's one person reading — you won't get this again. 🙏</p>
+          </div>
+        </div>
+        <p class="signature">your calendar scout</p>
+      </div>
+    </div>
+    <div class="note">The existing green box, retimed from use #5 to use #2–3 and reworded. Fires exactly once per sender, then silent forever.</div>
+    <div class="rating">Reads as: <b>gentle</b> — it's a box so it has weight, but "you won't get this again" removes the nag. One-shot is the whole point.</div>
+  </div>
+
+  <!-- 4. OPT-IN TESTER LIST -->
+  <div class="panel">
+    <div class="label">C4 · Opt-in tester list — one line in the welcome box / footer</div>
+    <div class="render">
+      <div class="email">
+        <div class="email">
+          <div class="fb-box">
+            <p class="lead"><strong>Welcome to Calendar Scout!</strong> Here's how it works:</p>
+            <p>✓ No account or sign-up needed. Completely free.</p>
+            <p>✓ You forward an email, I find the dates, one tap adds each to your calendar.</p>
+            <p>✓ I delete your email from my system right after.</p>
+            <p class="reply">Want to help shape this? Reply <strong>JOIN</strong> and I'll email you once a month with what's new and one question. Reply <strong>STOP</strong> anytime.</p>
+          </div>
+        </div>
+        <p class="signature">your calendar scout</p>
+        <hr class="foot">
+        <div class="footer">
+          <p><strong>Privacy</strong><br>
+          I process your text, find your dates, and don't store your data — unless you reply JOIN, in which case I keep just your address for the monthly note. <a href="#">sendtoschedule.com</a></p>
+        </div>
+      </div>
+    </div>
+    <div class="note">The only mechanism that legitimately lets Ian contact a sender again — because they explicitly asked. Consented, with a STOP path.</div>
+    <div class="rating">Reads as: <b>gentle / opt-in</b> — it's an offer, not a prompt. Slightly salesy only if over-worded; keep it to one sentence.</div>
+  </div>
+
+  <!-- 5. CONTEXT-TRIGGERED (bonus) -->
+  <div class="panel">
+    <div class="label">C8 · Context-triggered ask — only when a parse is shaky (bonus)</div>
+    <div class="render">
+      <div class="email">
+        <div class="report-shell">
+          <div class="summary">Found 2 events about Spring Fair, Volunteer Day</div>
+          <h3 class="evt-header">Your events from "PTA Update":</h3>
+          <div class="card uncertain">
+            <div class="title">Volunteer Day</div>
+            <div class="meta">Saturday, Mar 21 · 9:00 AM (inferred from context)</div>
+            <div class="warn">⚠ Time wasn't stated — I guessed morning from "coffee &amp; setup".</div>
+            <div class="warn" style="color:#2E4A2E;">Not sure I got this one right — reply and tell me?</div>
+            <a class="btn" href="#" style="background:#92600A;">Add to Calendar (review first)</a>
+          </div>
+        </div>
+        <p class="signature">your calendar scout</p>
+      </div>
+    </div>
+    <div class="note">Uses signals the code already computes (low confidence, inferred am/pm, URL error). Appears only on the shaky card — feedback asked exactly where it's useful.</div>
+    <div class="rating">Reads as: <b>gentle / honest</b> — shows up only when the tool itself is unsure, so it reads as candour, not nagging.</div>
+  </div>
+
+</div>
+</body>
+</html>

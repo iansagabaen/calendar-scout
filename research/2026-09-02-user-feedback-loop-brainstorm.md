@@ -6,7 +6,7 @@ type: strategy
 
 # User Feedback Loop Brainstorm — 2026-09-02
 
-> STATUS: IN PROGRESS — written incrementally, saved as it goes.
+> STATUS: COMPLETE — brainstorm + ranked options + mockup. Not an implementation.
 
 ## Why this doc exists
 
@@ -409,6 +409,23 @@ Notes:
 
 `research/feedback-cta-mockup.html` renders the current footer AS-IS next to the
 recommended variants (upgraded footer row, one-tap reaction row, lifecycle ask,
-opt-in list CTA) using the product's real colours and Georgia serif, so the
-intrusiveness of each can be eyeballed. Inline CSS only; open with a
-`file://` path or a throwaway `python3 -m http.server`.
+opt-in list CTA, plus the bonus context-triggered ask) using the product's real
+colours and Georgia serif, so the intrusiveness of each can be eyeballed. Inline
+CSS only; open with a `file://` path or a throwaway `python3 -m http.server`.
+
+**Visual check (2026-09-07, rendered in-browser, inline snapshot only — no live
+email client):** the render agreed with the §C intrusiveness ratings, no changes
+made.
+
+- **C1 footer row** — reads *gentle / ignorable*. Same `#888` grey and weight as
+  the rest of the footer, sits below "your calendar scout", nothing shouts.
+- **C2 reaction row** — reads *gentle but slightly present*. The pill-shaped
+  👍 / 👎 / "it missed one" buttons are a touch more button-like than the footer
+  link; fine when capped to the 1st and 3rd report, would tip toward naggy if
+  shown every time (matches the "borders on medium" note).
+- **C3 lifecycle ask** — reads *gentle*. It's the green box so it carries visual
+  weight, but "you won't get this again" defuses the nag. One-shot carries it.
+- **C4 opt-in CTA** — reads *gentle / an offer*. One italic line inside the
+  welcome box, not a prompt. Not salesy at this wording.
+- **C8 context ask** — reads *gentle / honest*. Only on the amber "review first"
+  card, framed as the tool admitting it's unsure — candour, not a solicitation.
