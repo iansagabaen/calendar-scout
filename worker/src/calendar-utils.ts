@@ -473,7 +473,7 @@ function todayUtcDate(): Date {
  * calendar date (single date OR range). In that case createCalendarUrl() no
  * longer blocks — it falls back to today() as an editable placeholder and still
  * returns a working link. email-templates.ts calls this to render the amber
- * "date not found" notice (and the "set the date" button label) while keeping the
+ * "date not found" notice (and the "fix the date" button label) while keeping the
  * card's ⚠ warnings. Keep this predicate in lock-step with the date branch of
  * createCalendarUrl() below.
  * See research/2026-09-10-unparseable-date-graceful-fallback.md.

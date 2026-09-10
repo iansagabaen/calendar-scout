@@ -151,7 +151,7 @@ export function buildReportEmail(
 			const contextStr = event.DateContext
 				? `<div style="font-size:12px; color:#777; border-left: 3px solid #F5C542; padding-left: 10px; margin: 8px 0 12px; font-style: italic;">"${event.DateContext}"</div>`
 				: `<div style="margin-bottom:12px;"></div>`;
-			const uncertainLabel = datePlaceholder ? 'Add to Calendar (set the date)' : 'Add to Calendar (review first)';
+			const uncertainLabel = datePlaceholder ? 'Add to Calendar (fix the date)' : 'Add to Calendar (review first)';
 			const calendarButtonHtml = calendarLink
 				? `<a href="${calendarLink}" style="display: block; background-color: #92600A; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">${uncertainLabel}</a>`
 				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;
@@ -169,7 +169,7 @@ export function buildReportEmail(
           ${calendarButtonHtml}
         </div>`;
 		} else {
-			const normalLabel = datePlaceholder ? 'Add to Calendar (set the date)' : 'Add to Calendar';
+			const normalLabel = datePlaceholder ? 'Add to Calendar (fix the date)' : 'Add to Calendar';
 			const calendarButtonHtml = calendarLink
 				? `<a href="${calendarLink}" style="display: block; background-color: #2E4A2E; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">${normalLabel}</a>`
 				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;

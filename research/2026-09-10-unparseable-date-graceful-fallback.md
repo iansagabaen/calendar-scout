@@ -75,7 +75,7 @@ For an event whose date is **missing or unparseable** (single date or range):
    - blank line, then the existing `(Added via sendtoschedule.com)` footer.
    All of it goes through `encodeURIComponent` (unchanged), so it's URL-safe.
 4. **Card** (`email-templates.ts`): the disabled `Cannot add (date error)` button
-   is replaced by a real enabled link (`Add to Calendar (set the date)`), because
+   is replaced by a real enabled link (`Add to Calendar (fix the date)`), because
    `createCalendarUrl` now returns a string. The ⚠ `DateNote` warning and the
    `DateContext` quote block are KEPT. A new **amber** notice
    (`color:#92600A` on `#FFFBF0` with a `#F5C542` left border — the existing
@@ -99,7 +99,7 @@ UTC/`setUTCHours` correctness.
 | File | Change |
 |---|---|
 | `worker/src/calendar-utils.ts` | New exported `eventDateIsPlaceholder(event)` (missing/unparseable date predicate, shared by the URL builder and the template). New internal `todayUtcDate()`. `createCalendarUrl`: nothing-usable guard at top; date branch sets a `datePlaceholder` flag + today instead of returning `{error}`; ambiguous-time `{error}` only returned when NOT a placeholder; placeholder-only description composition block (normal path untouched). |
-| `worker/src/email-templates.ts` | Per-event: compute `datePlaceholder = eventDateIsPlaceholder(event) && !!calendarLink`; new amber `placeholderNotice` div rendered in both card branches next to `errorWarning`; button label `Add to Calendar (set the date)` when `datePlaceholder`. Red `errorWarning` line untouched (still fires for the true blocker / ambiguous-time). |
+| `worker/src/email-templates.ts` | Per-event: compute `datePlaceholder = eventDateIsPlaceholder(event) && !!calendarLink`; new amber `placeholderNotice` div rendered in both card branches next to `errorWarning`; button label `Add to Calendar (fix the date)` when `datePlaceholder`. Red `errorWarning` line untouched (still fires for the true blocker / ambiguous-time). |
 | `worker/src/types.ts` | `ScoutEvent.DatePlaceholder?: boolean` doc field (not required by the logic — the predicate is derived — but reserved / documented). |
 | `worker/src/regression-samples.ts` | New exported `NO_DATE_EVENTS_SAMPLE` (Transit Month Webinar + Bike Classes Planning Survey, "at Online", the visible quotes). Kept OUT of the live `REGRESSION_CASES` array (no extra nightly Gemini call / no `validateShape` empty-Date flake); asserted offline by the new spec. |
 | `worker/test/unparseable-date.spec.ts` | New. Unit + integration coverage (see Tests). |
@@ -116,7 +116,7 @@ UTC/`setUTCHours` correctness.
   `dates=` + description format).
 - `createCalendarUrl`, no Title/Desc/Date/Time → still `{ error }` (true blocker).
 - `buildReportEmail` card for a placeholder-date event → enabled
-  `Add to Calendar (set the date)` link, KEEPS the ⚠ `DateNote`, shows the amber
+  `Add to Calendar (fix the date)` link, KEEPS the ⚠ `DateNote`, shows the amber
   notice, does NOT contain `Cannot add (date error)`.
 - `buildReportEmail` for the no-Title/Desc/Date/Time event → still shows
   `Cannot add (date error)`.
@@ -150,10 +150,10 @@ Rendered result (screenshot was inline-only, not saved to disk):
   `No specific day or date range is mentioned…` DateNote is KEPT, the DateContext
   quote is KEPT, then an amber ⚠ `Date not found in the newsletter — the calendar
   link defaults to today; set the correct date before saving.` and an **enabled**
-  amber `Add to Calendar (set the date)` button. No red line, no "Cannot add".
+  amber `Add to Calendar (fix the date)` button. No red line, no "Cannot add".
 - **Bike Classes Planning Survey — Info Call** (no date, `12:00pm`):
   `Date not specified · 12:00pm`, same amber notice, enabled
-  `Add to Calendar (set the date)`.
+  `Add to Calendar (fix the date)`.
 
 Decoded generated URLs (from the preview HTML):
 
@@ -172,6 +172,7 @@ Decoded generated URLs (from the preview HTML):
   `NO_DATE_EVENTS_SAMPLE`. Suite **114 → 127**, all pass. tsc unchanged.
 - 2026-09-10: rendered `unparseable-date-card-preview.html`, verified in the
   in-app browser + decoded URLs (above).
+- 2026-09-10: button label finalized to "Add to Calendar (fix the date)" per Ian.
 - 2026-09-10: shipped. Commits `be237e7` (design doc), `f86fd58` (impl + tests),
   `1588352` (render script + preview + doc), `<final>` (this finalization) →
   pushed to `iansagabaen/calendar-scout` `main`.

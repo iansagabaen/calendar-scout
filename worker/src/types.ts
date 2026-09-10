@@ -63,7 +63,7 @@ export interface ScoutEvent {
 	// fell back to "today" as an editable placeholder (see calendar-utils.ts
 	// eventDateIsPlaceholder / createCalendarUrl and
 	// research/2026-09-10-unparseable-date-graceful-fallback.md). The report card
-	// still renders a WORKING "Add to Calendar (set the date)" link plus an amber
+	// still renders a WORKING "Add to Calendar (fix the date)" link plus an amber
 	// "date not found" notice, instead of the old disabled "Cannot add" button.
 	// The flag is informational — the template derives the same fact from
 	// eventDateIsPlaceholder(event) — so nothing depends on it being set.

@@ -188,7 +188,7 @@ const IMAGE_SAMPLE: RegressionCase = {
 // `Could not parse date ""` line. The fix (see
 // research/2026-09-10-unparseable-date-graceful-fallback.md): a missing/
 // unparseable date now falls back to today as an editable placeholder and still
-// produces a working "Add to Calendar (set the date)" link.
+// produces a working "Add to Calendar (fix the date)" link.
 //
 // This sample is deliberately kept OUT of REGRESSION_CASES: the live nightly
 // harness's validateShape() (correctly, for its purpose) rejects an event with

@@ -9,7 +9,7 @@ import type { ScoutEvent } from '../src/types';
 // createCalendarUrl() falls back to today (UTC-midnight) as an editable
 // placeholder and still returns a working link; the report card keeps its ⚠
 // warnings, swaps the red date error for an amber notice, and offers an enabled
-// "Add to Calendar (set the date)" button.
+// "Add to Calendar (fix the date)" button.
 // See research/2026-09-10-unparseable-date-graceful-fallback.md.
 
 /** Today's date as YYYYMMDD in UTC — the placeholder anchor createCalendarUrl uses. */
@@ -140,10 +140,10 @@ describe('buildReportEmail card — placeholder-date event', () => {
 		DateContext: 'Register online; a recording will be shared afterward.',
 	};
 
-	it('renders an ENABLED "Add to Calendar (set the date)" link and keeps the ⚠ warnings', () => {
+	it('renders an ENABLED "Add to Calendar (fix the date)" link and keeps the ⚠ warnings', () => {
 		const { html } = buildReportEmail([placeholderEvent], 'Fwd: September is Transit Month!', 'Sep 10, 2026', false, 'summary');
 		expect(html).toContain('https://www.google.com/calendar/render?action=TEMPLATE');
-		expect(html).toContain('Add to Calendar (set the date)');
+		expect(html).toContain('Add to Calendar (fix the date)');
 		expect(html).not.toContain('Cannot add (date error)');
 		// keeps the low-confidence DateNote ⚠ line
 		expect(html).toContain('No specific day or date range is mentioned for this webinar.');
@@ -167,7 +167,7 @@ describe('buildReportEmail card — placeholder-date event', () => {
 			'summary'
 		);
 		expect(html).toContain('>Add to Calendar</a>');
-		expect(html).not.toContain('set the date');
+		expect(html).not.toContain('fix the date');
 		expect(html).not.toContain('Date not found in the newsletter');
 	});
 });

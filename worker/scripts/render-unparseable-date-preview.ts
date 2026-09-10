@@ -5,7 +5,7 @@
 //
 // This is the visual proof for
 // research/2026-09-10-unparseable-date-graceful-fallback.md: the two
-// placeholder-date cards must show an ENABLED "Add to Calendar (set the date)"
+// placeholder-date cards must show an ENABLED "Add to Calendar (fix the date)"
 // button and a readable amber "date not found" notice, while the normal card is
 // unaffected.
 //
