@@ -129,7 +129,46 @@ UTC/`setUTCHours` correctness.
 Suite before: **114 passed** (5 files). tsc before: only the known
 `src/test.ts(128,4)` error.
 
+## Visual proof
+
+`worker/scripts/render-unparseable-date-preview.ts` renders the real
+`buildReportEmail` output for three fabricated events →
+`research/unparseable-date-card-preview.html`. Run (from `worker/`):
+
+```
+npx esbuild scripts/render-unparseable-date-preview.ts --bundle --platform=node --format=esm --outfile=/tmp/render.mjs && node /tmp/render.mjs
+```
+
+(the `src/` files use extensionless imports, so `node --experimental-strip-types`
+needs the esbuild bundle step — same as `scripts/repro-pinecrest.ts`.)
+
+Rendered result (screenshot was inline-only, not saved to disk):
+
+- **Fall Bike Ride** (valid `Oct 4, 2026`, `9:00-11:00am`): unchanged — green
+  `Add to Calendar` button, `Sunday, Oct 4, 2026 · 9:00am to 11:00am` line.
+- **Transit Month Webinar** (no date, no time): `Date not specified`, the ⚠
+  `No specific day or date range is mentioned…` DateNote is KEPT, the DateContext
+  quote is KEPT, then an amber ⚠ `Date not found in the newsletter — the calendar
+  link defaults to today; set the correct date before saving.` and an **enabled**
+  amber `Add to Calendar (set the date)` button. No red line, no "Cannot add".
+- **Bike Classes Planning Survey — Info Call** (no date, `12:00pm`):
+  `Date not specified · 12:00pm`, same amber notice, enabled
+  `Add to Calendar (set the date)`.
+
+Decoded generated URLs (from the preview HTML):
+
+| Event | `text=` | `dates=` | `details=` highlights |
+|---|---|---|---|
+| Fall Bike Ride | `Fall Bike Ride` | `20261004T090000/20261004T110000` | unchanged legacy format |
+| Transit Month Webinar | `Transit Month Webinar` | `20260910/20260911` (all-day **today**, 2026-09-10) | description, `From the newsletter: "…"`, `Location: Online`, `Date note: …`, `⚠️ Calendar Scout could not determine the date … set to Thursday, Sep 10, 2026 as a placeholder — please edit …`, footer |
+| Bike Classes … Info Call | `Bike Classes Planning Survey — Info Call` | `20260910T120000/20260910T130000` (**today noon +1h**) | same, plus `Time text seen: "12:00pm"` |
+
 ## Status log
 
 - 2026-09-10: design doc written, code read, baseline captured (114 tests, tsc
-  clean bar the known one). Implementing next.
+  clean bar the known one).
+- 2026-09-10: implemented in `calendar-utils.ts` + `email-templates.ts` +
+  `types.ts`; added `worker/test/unparseable-date.spec.ts` (13 tests) +
+  `NO_DATE_EVENTS_SAMPLE`. Suite **114 → 127**, all pass. tsc unchanged.
+- 2026-09-10: rendered `unparseable-date-card-preview.html`, verified in the
+  in-app browser + decoded URLs (above). Deploy next.
