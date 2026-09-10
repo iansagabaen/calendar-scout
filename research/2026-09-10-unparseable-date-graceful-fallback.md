@@ -171,4 +171,51 @@ Decoded generated URLs (from the preview HTML):
   `types.ts`; added `worker/test/unparseable-date.spec.ts` (13 tests) +
   `NO_DATE_EVENTS_SAMPLE`. Suite **114 → 127**, all pass. tsc unchanged.
 - 2026-09-10: rendered `unparseable-date-card-preview.html`, verified in the
-  in-app browser + decoded URLs (above). Deploy next.
+  in-app browser + decoded URLs (above).
+- 2026-09-10: shipped. Commits `be237e7` (design doc), `f86fd58` (impl + tests),
+  `1588352` (render script + preview + doc), `<final>` (this finalization) →
+  pushed to `iansagabaen/calendar-scout` `main`.
+
+## Deploy
+
+- `gh workflow run deploy.yml` → run **34510952729** (`workflow_dispatch`) →
+  `success`; also push-triggered run **34510945177** (`push`, same commit
+  `1588352`) → `success`, deployed ~6s later so it is the live one.
+- Wrangler: `Total Upload: 186.74 KiB / gzip: 48.78 KiB`, `Worker Startup Time:
+  6 ms`, `Deployed calendar-scout-worker triggers` →
+  `https://calendar-scout-worker.iansagabaen.workers.dev`, `schedule: 0 3 * * *`.
+- New Version IDs (both from commit `1588352`, differ from the prior live
+  version): dispatch run `5f37d7b9-2726-47e6-8b16-8e228f75eed6`, **live**
+  (push run, deployed last) `0df24580-6d4c-4f6b-8425-fdbfd5b8fb68`.
+- `.github#11` annotation `git failed with exit code 128` — pre-existing on this
+  workflow (a non-fatal post-step), not introduced here; job concluded `success`.
+
+## STEP 8 — deployed-worker verification
+
+`GET /admin/smoke-test` with the `X-Admin-Secret` header (secret from
+`worker/.dev.vars`):
+
+```
+HTTP 200
+{"ok":true,"eventCount":1,"tookMs":2435}
+```
+
+**Verified:** the new version is live and the end-to-end plumbing
+(fetch → Gemini → parse → `createCalendarUrl`) is healthy; the full `worker/`
+suite (127 tests) exercises the new fallback against the built code, including a
+nightly-harness-shape end-to-end check on `NO_DATE_EVENTS_SAMPLE`.
+
+**Not yet verified end-to-end:** a real Gemini response returning a genuinely
+date-less event, rendered in a real inbox. That path is covered going forward by
+`NO_DATE_EVENTS_SAMPLE` (asserted offline each `npm test`) and by Ian
+re-forwarding the Transit Month newsletter. The nightly cron regression test is
+unchanged (still the two live cases); `NO_DATE_EVENTS_SAMPLE` is deliberately not
+one of them (see `regression-samples.ts` comment).
+
+## Follow-ups
+
+- If real usage shows date-less events are common, consider surfacing the
+  placeholder date more prominently in the card body (currently only the amber
+  notice + the `Date not specified` line signal it).
+- `createCalendarUrlWithSummary` (currently unused in the live path) still has the
+  old hard date-error behaviour — align it if it is ever wired back in.
