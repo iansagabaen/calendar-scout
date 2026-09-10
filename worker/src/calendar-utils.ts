@@ -459,38 +459,94 @@ function formatDateTimeForDescription(date: Date, endDate: Date, timeStr: string
 	return `${dateStr} · ${timeDisplay}`;
 }
 
+/** UTC-midnight Date for "today" — the placeholder anchor used when an event's
+ *  date is missing or unparseable. Built with Date.UTC(...) (NOT setHours) so it
+ *  stays on the same UTC-only footing as every other date in this file: a server
+ *  in any region produces the same YYYYMMDD. */
+function todayUtcDate(): Date {
+	const now = new Date();
+	return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/**
+ * True when `event.Date` is absent, blank, or cannot be parsed into a real
+ * calendar date (single date OR range). In that case createCalendarUrl() no
+ * longer blocks — it falls back to today() as an editable placeholder and still
+ * returns a working link. email-templates.ts calls this to render the amber
+ * "date not found" notice (and the "set the date" button label) while keeping the
+ * card's ⚠ warnings. Keep this predicate in lock-step with the date branch of
+ * createCalendarUrl() below.
+ * See research/2026-09-10-unparseable-date-graceful-fallback.md.
+ */
+export function eventDateIsPlaceholder(event: ScoutEvent): boolean {
+	const dateStr = (event?.Date ?? '').toString().trim();
+	if (!dateStr) return true;
+	const range = parseDateRange(dateStr);
+	if (range && 'error' in range) return true;
+	if (range) return false;
+	return isNaN(new Date(dateStr).getTime());
+}
+
 export function createCalendarUrl(event: ScoutEvent, _subject: string, _receivedDate: string): string | { error: string } {
 	const baseUrl = 'https://www.google.com/calendar/render?action=TEMPLATE';
-	const title = event.Title || 'Scouted Event';
+	const title = (event.Title && event.Title.trim()) || 'Untitled event (from newsletter)';
+
+	// The ONLY true blocker left: an event with nothing usable at all — no title,
+	// no description, no date, no time. Everything else gets a working link.
+	const hasSomethingUsable = [event.Title, event.Description, event.Date, event.Time].some(
+		(v) => typeof v === 'string' && v.trim() !== ''
+	);
+	if (!hasSomethingUsable) {
+		return { error: 'No event details found — nothing to put on a calendar.' };
+	}
+
 	let startD = new Date();
 	let endD = new Date();
 	let allDay = true;
+	// Set when the date was missing/unparseable and we fell back to today. Drives
+	// the extra context + placeholder notice in the description below.
+	let datePlaceholder = false;
+	// Raw Date text as received (trimmed), hoisted so the description block below
+	// can surface it verbatim on the placeholder path.
+	const dateStr = String(event.Date ?? '').trim();
 
 	try {
-		const dateStr = String(event.Date);
-
 		// Check for a date range first (e.g. "August 10 - August 20, 2026")
-		const range = parseDateRange(dateStr);
+		const range = dateStr ? parseDateRange(dateStr) : null;
 		if (range && 'error' in range) {
-			return range;
-		}
-		if (range) {
+			// A range we can't parse -> today placeholder (was: return the error).
+			datePlaceholder = true;
+		} else if (range) {
 			startD = range.start;
 			endD = range.end;
 			// allDay stays true; time parsing below will override if time exists
 		} else {
-			startD = new Date(dateStr);
-			endD = new Date(dateStr);
-			if (isNaN(startD.getTime())) {
-				return { error: `Could not parse date "${dateStr}". Please use format like "Aug 10, 2026"` };
+			const parsed = dateStr ? new Date(dateStr) : new Date(NaN);
+			if (isNaN(parsed.getTime())) {
+				// Missing or unparseable single date -> today placeholder
+				// (was: return { error: `Could not parse date "${dateStr}"...` }).
+				datePlaceholder = true;
+			} else {
+				startD = parsed;
+				endD = new Date(dateStr);
 			}
+		}
+
+		if (datePlaceholder) {
+			startD = todayUtcDate();
+			endD = todayUtcDate();
 		}
 
 		const times = parseTime(event.Time || '');
 		if (times && 'error' in times) {
-			return times;
-		}
-		if (times && times.start) {
+			// Valid date + ambiguous time keeps the existing hard error (unchanged).
+			// But when the date is ALREADY a placeholder, don't add a second blocker
+			// on top — fall through as all-day today; the raw time text is surfaced
+			// in the description instead.
+			if (!datePlaceholder) {
+				return times;
+			}
+		} else if (times && times.start) {
 			allDay = false;
 			applyTime(startD, times.start);
 			if (times.end) {
@@ -506,20 +562,53 @@ export function createCalendarUrl(event: ScoutEvent, _subject: string, _received
 	// Build description with date/time, location, and footer
 	const descriptionParts: string[] = [];
 
-	// Add formatted date and time
-	const dateTimeStr = formatDateTimeForDescription(startD, endD, event.Time, allDay);
-	if (dateTimeStr) {
-		descriptionParts.push(dateTimeStr);
-	}
+	if (datePlaceholder) {
+		// Missing/unparseable date: compose a context-rich description so the user
+		// lands in Google Calendar with a mostly-filled event and just re-dates it.
+		const todayLabel = formatDateWithDay(startD.toISOString());
 
-	// Add location
-	if (event.Location) {
-		descriptionParts.push('Location: ' + event.Location);
-	}
+		if (event.Description) {
+			descriptionParts.push(event.Description);
+		}
+		if (event.DateContext) {
+			if (descriptionParts.length) descriptionParts.push('');
+			descriptionParts.push(`From the newsletter: "${event.DateContext}"`);
+		}
+		if (event.Location) {
+			descriptionParts.push('Location: ' + event.Location);
+		}
 
-	// Add original description/details
-	if (event.Description) {
-		descriptionParts.push(event.Description);
+		// Raw hints that were seen but couldn't be used — kept verbatim so the user
+		// can sanity-check the placeholder against what the newsletter actually said.
+		const rawHints: string[] = [];
+		if (dateStr) rawHints.push(`Date text seen: "${dateStr}"`);
+		if (event.DateNote && event.DateNote.trim()) rawHints.push(`Date note: ${event.DateNote.trim()}`);
+		if (event.Time && event.Time.trim()) rawHints.push(`Time text seen: "${event.Time.trim()}"`);
+		if (rawHints.length) {
+			descriptionParts.push('');
+			descriptionParts.push(...rawHints);
+		}
+
+		descriptionParts.push('');
+		descriptionParts.push(
+			`⚠️ Calendar Scout could not determine the date for this event. It has been set to ${todayLabel} as a placeholder — please edit the date/time before saving.`
+		);
+	} else {
+		// Add formatted date and time
+		const dateTimeStr = formatDateTimeForDescription(startD, endD, event.Time, allDay);
+		if (dateTimeStr) {
+			descriptionParts.push(dateTimeStr);
+		}
+
+		// Add location
+		if (event.Location) {
+			descriptionParts.push('Location: ' + event.Location);
+		}
+
+		// Add original description/details
+		if (event.Description) {
+			descriptionParts.push(event.Description);
+		}
 	}
 
 	// Add footer with blank line separator

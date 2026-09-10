@@ -5,7 +5,7 @@
 // "photo of a flyer on a community bulletin board" bullet in the FTUX no-events email.
 
 import type { ScoutEvent } from './types';
-import { createCalendarUrl, formatDateWithDay } from './calendar-utils';
+import { createCalendarUrl, eventDateIsPlaceholder, formatDateWithDay } from './calendar-utils';
 
 export const SIGNATURE = '<p>your calendar scout</p>';
 
@@ -128,7 +128,18 @@ export function buildReportEmail(
 			: `<div style="margin-bottom:12px;"></div>`;
 		const isUncertain = event.DateConfidence === 'low';
 
-		// If there's a calendar error, show it prominently
+		// Missing/unparseable date: createCalendarUrl() now falls back to today and
+		// still returns a working link (calendarLink is a string). Show a gentle
+		// amber notice instead of the old red "Could not parse date" blocker, and
+		// keep the card's other ⚠ warnings. See
+		// research/2026-09-10-unparseable-date-graceful-fallback.md.
+		const datePlaceholder = !!calendarLink && eventDateIsPlaceholder(event);
+		const placeholderNotice = datePlaceholder
+			? `<div style="font-size:12px; color:#92600A; background-color:#FFFBF0; border-left: 3px solid #F5C542; padding: 6px 10px; margin: 6px 0 4px;">⚠ Date not found in the newsletter — the calendar link defaults to today; set the correct date before saving.</div>`
+			: '';
+
+		// If there's a genuine calendar error (the true blocker: nothing usable at
+		// all, or a valid date with an un-inferrable ambiguous time), show it.
 		const errorWarning = calendarError
 			? `<div style="font-size:12px; color:#D84040; margin: 6px 0 4px;">⚠ Calendar date error: ${calendarError}</div>`
 			: '';
@@ -140,8 +151,9 @@ export function buildReportEmail(
 			const contextStr = event.DateContext
 				? `<div style="font-size:12px; color:#777; border-left: 3px solid #F5C542; padding-left: 10px; margin: 8px 0 12px; font-style: italic;">"${event.DateContext}"</div>`
 				: `<div style="margin-bottom:12px;"></div>`;
+			const uncertainLabel = datePlaceholder ? 'Add to Calendar (set the date)' : 'Add to Calendar (review first)';
 			const calendarButtonHtml = calendarLink
-				? `<a href="${calendarLink}" style="display: block; background-color: #92600A; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar (review first)</a>`
+				? `<a href="${calendarLink}" style="display: block; background-color: #92600A; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">${uncertainLabel}</a>`
 				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;
 			eventCards += `
         <div style="background-color: #FFFBF0; border: 1px solid #F5C542; border-radius: 16px; padding: 20px; margin-bottom: 16px;">
@@ -151,13 +163,15 @@ export function buildReportEmail(
           ${timeNoteStr}
           ${warningStr}
           ${contextStr}
+          ${placeholderNotice}
           ${errorWarning}
           ${descStr}
           ${calendarButtonHtml}
         </div>`;
 		} else {
+			const normalLabel = datePlaceholder ? 'Add to Calendar (set the date)' : 'Add to Calendar';
 			const calendarButtonHtml = calendarLink
-				? `<a href="${calendarLink}" style="display: block; background-color: #2E4A2E; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">Add to Calendar</a>`
+				? `<a href="${calendarLink}" style="display: block; background-color: #2E4A2E; color: #ffffff; text-align: center; padding: 14px; text-decoration: none; border-radius: 12px; font-weight: bold;">${normalLabel}</a>`
 				: `<div style="display: block; background-color: #999; color: #ffffff; text-align: center; padding: 14px; border-radius: 12px; font-weight: bold;">Cannot add (date error)</div>`;
 			eventCards += `
         <div style="background-color: #ffffff; border: 1px solid #E0E7E0; border-radius: 16px; padding: 20px; margin-bottom: 16px;">
@@ -165,6 +179,7 @@ export function buildReportEmail(
           <div style="color: #8A9A8A; font-size: 14px; margin-top: 4px;">${formattedDate} ${timeStr}</div>
           ${locationStr}
           ${timeNoteStr}
+          ${placeholderNotice}
           ${errorWarning}
           ${descStr}
           ${calendarButtonHtml}

@@ -59,6 +59,15 @@ export interface ScoutEvent {
 	TimeConfidence?: 'high' | 'low';
 	TimeInferred?: boolean;
 	TimeInferenceNote?: string;
+	// Set when the event's Date was missing or unparseable and createCalendarUrl()
+	// fell back to "today" as an editable placeholder (see calendar-utils.ts
+	// eventDateIsPlaceholder / createCalendarUrl and
+	// research/2026-09-10-unparseable-date-graceful-fallback.md). The report card
+	// still renders a WORKING "Add to Calendar (set the date)" link plus an amber
+	// "date not found" notice, instead of the old disabled "Cannot add" button.
+	// The flag is informational — the template derives the same fact from
+	// eventDateIsPlaceholder(event) — so nothing depends on it being set.
+	DatePlaceholder?: boolean;
 }
 
 export interface GeminiResult {

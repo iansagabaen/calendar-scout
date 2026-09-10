@@ -179,4 +179,40 @@ const IMAGE_SAMPLE: RegressionCase = {
 	minExpectedEvents: 1,
 };
 
+// --- No-date events sample (asserted OFFLINE, not a live nightly case) -----
+//
+// Added after 2026-09-10: Ian test-forwarded a Bay Area "Transit Month" commute
+// newsletter. Two events — "Transit Month Webinar" and "Bike Classes Planning
+// Survey" — named no date anywhere, so Gemini returned each with Date: "". The
+// card rendered a DISABLED "Cannot add (date error)" button plus a red
+// `Could not parse date ""` line. The fix (see
+// research/2026-09-10-unparseable-date-graceful-fallback.md): a missing/
+// unparseable date now falls back to today as an editable placeholder and still
+// produces a working "Add to Calendar (set the date)" link.
+//
+// This sample is deliberately kept OUT of REGRESSION_CASES: the live nightly
+// harness's validateShape() (correctly, for its purpose) rejects an event with
+// an empty Date, and adding a third live Gemini call per night isn't worth it
+// for a case whose real assertion — "the downstream pipeline yields an addable
+// entry, never a bare blocker" — is deterministic and needs no model. That
+// assertion lives in worker/test/unparseable-date.spec.ts, which runs these
+// exact events through resolveEventTimes -> createCalendarUrl ->
+// checkCalendarUrlWellFormed (the same downstream path the nightly harness
+// validates).
+export const NO_DATE_EVENTS_SAMPLE: RegressionCase = {
+	id: 'text-no-date-events',
+	label: 'Text-only newsletter with dateless events (Bay Area "Transit Month" sample)',
+	subject: 'Fwd: September is Transit Month!',
+	body: `September is Transit Month across the Bay Area — a month to try a new way to get around.
+
+Transit Month Webinar: Join transit agency staff and advocates for a virtual conversation about what's next for the regional network. Register online; a recording will be shared afterward with everyone who signs up.
+
+Bike Classes Planning Survey: We're planning our fall/winter adult bike education classes and want to hear from you. Take the short online survey to tell us which class types, days, and neighborhoods work best for you.
+
+Both are online. Questions? Just reply to this email.`,
+	mediaParts: [],
+	// Two dateless events. Not run live, so this is documentation of intent.
+	minExpectedEvents: 2,
+};
+
 export const REGRESSION_CASES: RegressionCase[] = [TEXT_SAMPLE, QUOTE_DENSE_ANNOUNCEMENT_SAMPLE, IMAGE_SAMPLE];
