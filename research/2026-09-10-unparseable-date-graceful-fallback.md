@@ -1,0 +1,135 @@
+---
+name: Unparseable / Missing Event Date — Graceful Fallback (2026-09-10)
+description: A missing or unparseable event date no longer disables the "Add to Calendar" button. The card keeps its ⚠ warnings, swaps the red date error for an amber notice, and hands the user a working Google Calendar link defaulted to today with a prefilled title + context-rich description they just re-date before saving.
+type: feature
+---
+
+# Unparseable / Missing Event Date — Graceful Fallback — 2026-09-10
+
+## Trigger
+
+Ian test-forwarded a Bay Area "Transit Month" commute newsletter. Two extracted
+events — **Transit Month Webinar** and **Bike Classes Planning Survey** — named no
+date anywhere in the source, so Gemini returned each with `Date: ""`,
+`DateConfidence: "low"`, and a `DateNote`. Each card rendered:
+
+- "Date not specified"
+- ⚠ "No specific day or date range is mentioned for this ..." (the `DateNote`)
+- ⚠ red: `Calendar date error: Could not parse date "". Please use format like "Aug 10, 2026"`
+- a DISABLED grey button: **"Cannot add (date error)"**
+
+Ian's call: a hard blocker isn't helpful — the user may still want the event on
+their calendar. Warn them, but give them a working link defaulted to today with as
+much prefilled context as possible, so they land in Google Calendar and just fix
+the date.
+
+## Current behaviour (before this change)
+
+`worker/src/calendar-utils.ts` → `createCalendarUrl(event, _subject, _receivedDate)`:
+
+- Line ~484: `startD = new Date(dateStr); if (isNaN(startD.getTime())) return { error: `Could not parse date "${dateStr}"...` };`
+  — for `event.Date === ""`, `new Date("")` is `Invalid Date`, so this returns the
+  `{ error }` object.
+- Line ~474: a `parseDateRange` that returns `{ error }` is also returned as-is.
+
+`worker/src/email-templates.ts` → `buildReportEmail`, per-event `forEach` (~line 106):
+
+- `const calendarLinkOrError = createCalendarUrl(...)`.
+  `calendarLink = typeof … === 'string' ? … : null`;
+  `calendarError = typeof … === 'string' ? null : …error`.
+- `errorWarning` (~line 132): when `calendarError` is set →
+  `<div style="…color:#D84040…">⚠ Calendar date error: ${calendarError}</div>` (red).
+- Button (~line 143 uncertain branch, ~line 159 normal branch):
+  `calendarLink ? <a …>Add to Calendar[ (review first)]</a>
+   : <div …background-color:#999…>Cannot add (date error)</div>` (disabled).
+
+The two no-date events took the `isUncertain` (`DateConfidence === 'low'`) branch,
+so they showed `Add to Calendar (review first)` logic → but `calendarLink` was
+`null` → disabled `Cannot add (date error)` div.
+
+## Target behaviour
+
+For an event whose date is **missing or unparseable** (single date or range):
+
+1. `createCalendarUrl` no longer returns `{ error }` for the date. It falls back
+   to **today** (UTC-midnight, via `Date.UTC(...)` — the existing UTC-consistent
+   path, no `setHours`) and continues building a real URL.
+   - **date-fail + a parseable time present** → today at that time, +1h block
+     (reuses the existing `parseTime` → `applyTime` (`setUTCHours`) path).
+   - **date-fail + no usable time** (no time, or an ambiguous/`{error}` time) →
+     **all-day today**: `dates=YYYYMMDD/YYYYMMDD+1`.
+2. **Title** = `event.Title` unchanged; if empty/whitespace →
+   `"Untitled event (from newsletter)"`.
+3. **Description** (placeholder path only — the normal path is byte-for-byte
+   unchanged) is composed, blank-line separated, in this order:
+   - `event.Description` (existing summary) if present
+   - `From the newsletter: "…"` — `event.DateContext` quote if present
+   - `Location: …` if present
+   - raw hints that were seen but couldn't be used: `Date text seen: "…"`
+     (`event.Date` when non-empty but unparseable), `Date note: …`
+     (`event.DateNote`), `Time text seen: "…"` (`event.Time`)
+   - blank line, then the placeholder notice:
+     `⚠️ Calendar Scout could not determine the date for this event. It has been
+     set to {today, e.g. "Wednesday, Sep 10, 2026"} as a placeholder — please edit
+     the date/time before saving.`
+   - blank line, then the existing `(Added via sendtoschedule.com)` footer.
+   All of it goes through `encodeURIComponent` (unchanged), so it's URL-safe.
+4. **Card** (`email-templates.ts`): the disabled `Cannot add (date error)` button
+   is replaced by a real enabled link (`Add to Calendar (set the date)`), because
+   `createCalendarUrl` now returns a string. The ⚠ `DateNote` warning and the
+   `DateContext` quote block are KEPT. A new **amber** notice
+   (`color:#92600A` on `#FFFBF0` with a `#F5C542` left border — the existing
+   "review first" treatment) replaces the red line, worded:
+   `⚠ Date not found in the newsletter — the calendar link defaults to today; set
+   the correct date before saving.`
+5. **The one remaining true blocker**: `createCalendarUrl` returns `{ error }`
+   (→ disabled button, red line kept) ONLY when the event has **no Title AND no
+   Description AND no Date AND no Time** — nothing usable at all. The existing
+   valid-date + ambiguous-**time** hard error is also preserved unchanged (that
+   path still returns the `parseTime` `{error}` and disables the button, and the
+   existing test that asserts the "Calendar date error … ambiguous" text still
+   passes).
+
+Preserved: valid-date events unchanged (normal + `review first` paths, description
+format, `dates=` output); AM/PM inference `⏰ Time note`; bare-meridiem → all-day;
+UTC/`setUTCHours` correctness.
+
+## Functions / branches changed
+
+| File | Change |
+|---|---|
+| `worker/src/calendar-utils.ts` | New exported `eventDateIsPlaceholder(event)` (missing/unparseable date predicate, shared by the URL builder and the template). New internal `todayUtcDate()`. `createCalendarUrl`: nothing-usable guard at top; date branch sets a `datePlaceholder` flag + today instead of returning `{error}`; ambiguous-time `{error}` only returned when NOT a placeholder; placeholder-only description composition block (normal path untouched). |
+| `worker/src/email-templates.ts` | Per-event: compute `datePlaceholder = eventDateIsPlaceholder(event) && !!calendarLink`; new amber `placeholderNotice` div rendered in both card branches next to `errorWarning`; button label `Add to Calendar (set the date)` when `datePlaceholder`. Red `errorWarning` line untouched (still fires for the true blocker / ambiguous-time). |
+| `worker/src/types.ts` | `ScoutEvent.DatePlaceholder?: boolean` doc field (not required by the logic — the predicate is derived — but reserved / documented). |
+| `worker/src/regression-samples.ts` | New exported `NO_DATE_EVENTS_SAMPLE` (Transit Month Webinar + Bike Classes Planning Survey, "at Online", the visible quotes). Kept OUT of the live `REGRESSION_CASES` array (no extra nightly Gemini call / no `validateShape` empty-Date flake); asserted offline by the new spec. |
+| `worker/test/unparseable-date.spec.ts` | New. Unit + integration coverage (see Tests). |
+
+## Tests (planned)
+
+- `createCalendarUrl`, `Date: ""`, no time → string URL, `dates=<today>/<today+1>`,
+  `details=` has title + placeholder notice, no `error`.
+- `createCalendarUrl`, `Date: ""`, `Time: "6:00pm"` → today at 18:00, +1h,
+  `dates=…T180000/…T190000`.
+- `createCalendarUrl`, unparseable non-empty `Date` ("sometime this fall") →
+  placeholder today, `Date text seen: "sometime this fall"` in details.
+- `createCalendarUrl`, genuine valid date → **unchanged** (regression: exact
+  `dates=` + description format).
+- `createCalendarUrl`, no Title/Desc/Date/Time → still `{ error }` (true blocker).
+- `buildReportEmail` card for a placeholder-date event → enabled
+  `Add to Calendar (set the date)` link, KEEPS the ⚠ `DateNote`, shows the amber
+  notice, does NOT contain `Cannot add (date error)`.
+- `buildReportEmail` for the no-Title/Desc/Date/Time event → still shows
+  `Cannot add (date error)`.
+- End-to-end (nightly-harness shape): `NO_DATE_EVENTS_SAMPLE` events →
+  `resolveEventTimes` → `createCalendarUrl` → `checkCalendarUrlWellFormed` returns
+  `null` (addable), never a bare blocker.
+- Existing ambiguous-time test still passes (valid date + `Time: "8:30"` still
+  renders "Calendar date error … ambiguous").
+
+Suite before: **114 passed** (5 files). tsc before: only the known
+`src/test.ts(128,4)` error.
+
+## Status log
+
+- 2026-09-10: design doc written, code read, baseline captured (114 tests, tsc
+  clean bar the known one). Implementing next.
