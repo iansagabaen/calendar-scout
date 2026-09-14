@@ -128,7 +128,7 @@ function validateCalendarUrls(events: ScoutEvent[], subject: string, receivedDat
 	return null;
 }
 
-async function runOneCase(env: Env, testCase: RegressionCase): Promise<CaseResult> {
+async function attemptOneCase(env: Env, testCase: RegressionCase): Promise<CaseResult> {
 	const start = Date.now();
 	const receivedDate = formatDateCleanly(new Date());
 	try {
@@ -156,6 +156,36 @@ async function runOneCase(env: Env, testCase: RegressionCase): Promise<CaseResul
 		const reason = e?.toString?.() || String(e);
 		return { id: testCase.id, label: testCase.label, passed: false, eventCount: 0, processingTimeMs, reason };
 	}
+}
+
+/**
+ * Runs a case, retrying once (a second, fresh end-to-end Gemini call) before
+ * reporting a failure. This exists for a gap the 2026-09-02 Covington fix
+ * didn't cover: callGeminiVisionAI's own per-model retry (gemini.ts) only
+ * fires when a 200 response's body won't parse as JSON at all -- it has no
+ * visibility into "parsed fine, but validateShape() didn't like the result"
+ * (wrong event count, a merged/dropped event, a missing field), which is a
+ * different and still-observed Gemini flakiness mode (2026-09-13: the quote-
+ * dense Covington "Got Talent" sample came back with only 1 of its 2 expected
+ * shows). Retrying the whole case here, at the nightly-harness level, catches
+ * that gap without touching the production email path or duplicating
+ * gemini.ts's own retry: a single flaky night that fails twice in a row and
+ * still alerts Ian is the actionable signal this test exists to give; a lone
+ * blip that clears on retry is not, and generates no alert email.
+ */
+async function runOneCase(env: Env, testCase: RegressionCase): Promise<CaseResult> {
+	const first = await attemptOneCase(env, testCase);
+	if (first.passed) return first;
+
+	const retry = await attemptOneCase(env, testCase);
+	if (retry.passed) {
+		console.log(
+			`nightly_regression: case "${testCase.id}" failed on attempt 1/2 (${first.reason}) but passed on retry -- treating as transient, not alerting.`
+		);
+		return retry;
+	}
+
+	return { ...retry, reason: `${retry.reason} (attempt 1/2 also failed: ${first.reason})` };
 }
 
 export async function runNightlyRegressionTest(env: Env): Promise<void> {

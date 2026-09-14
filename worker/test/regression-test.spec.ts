@@ -72,9 +72,14 @@ describe('scheduled() — nightly regression test', () => {
 			const urlStr = String(url);
 			if (urlStr.includes('generativelanguage.googleapis.com')) {
 				geminiCalls.push(init);
+				// 3 events satisfies both text samples' minExpectedEvents (TEXT_SAMPLE:
+				// 3, QUOTE_DENSE_ANNOUNCEMENT_SAMPLE: 2) so neither case's new
+				// retry-once-on-failure logic fires here — this test only cares about
+				// call routing (media vs text), not pass/fail behavior.
 				return geminiSuccessResponse([
 					{ Title: 'Book Fair', Date: 'Sep 14, 2026' },
 					{ Title: 'Field Trip', Date: 'Sep 17, 2026' },
+					{ Title: 'PTA Meeting', Date: 'Sep 24, 2026' },
 				]);
 			}
 			if (urlStr.includes('api.resend.com')) {
@@ -229,6 +234,102 @@ describe('scheduled() — nightly regression test', () => {
 		const executionLogLines = logSpy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('scout_execution'));
 		expect(executionLogLines.length).toBe(3);
 		expect(executionLogLines.every((l) => l.includes('"status":"SUCCESS"'))).toBe(true);
+	});
+
+	it('recovers silently when a sample fails shape validation once but passes on retry (transient flakiness)', async () => {
+		// Regression for 2026-09-13: the real nightly run's quote-dense Covington
+		// "Got Talent" sample came back with only 1 of its 2 expected shows on a
+		// single Gemini call. gemini.ts's own per-model retry only covers "200
+		// but unparseable JSON" -- it never sees a shape mismatch. The nightly
+		// harness must retry the whole case once before alerting, so a lone blip
+		// doesn't page Ian.
+		let quoteDenseCallCount = 0;
+		const resendCalls: any[] = [];
+		global.fetch = vi.fn(async (url: any, init?: any) => {
+			const urlStr = String(url);
+			if (urlStr.includes('generativelanguage.googleapis.com')) {
+				if (requestHasMedia(init)) {
+					return geminiSuccessResponse([{ Title: 'Founders Park Community Potluck', Date: 'Aug 8, 2026' }]);
+				}
+				const body = JSON.parse(init.body);
+				const promptText = body.contents[0].parts[0].text as string;
+				if (promptText.includes('Got Talent')) {
+					quoteDenseCallCount++;
+					if (quoteDenseCallCount === 1) {
+						// First attempt: the two shows get merged/dropped into one event.
+						return geminiSuccessResponse([{ Title: "Covington's Got Talent", Date: 'Sep 24, 2026' }]);
+					}
+					// Retry: both shows come back correctly.
+					return geminiSuccessResponse([
+						{ Title: "Covington's Got Talent (Families)", Date: 'Sep 24, 2026' },
+						{ Title: "Covington's Got Talent (Students)", Date: 'Sep 25, 2026' },
+					]);
+				}
+				// Pinecrest text-only sample.
+				return geminiSuccessResponse([
+					{ Title: 'Book Fair', Date: 'Sep 14, 2026' },
+					{ Title: 'Picture Day', Date: 'Sep 17, 2026' },
+					{ Title: 'PTA Meeting', Date: 'Sep 24, 2026' },
+				]);
+			}
+			if (urlStr.includes('api.resend.com')) {
+				resendCalls.push(JSON.parse(init.body));
+				return new Response(JSON.stringify({ id: 'x' }), { status: 200 });
+			}
+			throw new Error('Unexpected fetch to ' + urlStr);
+		}) as any;
+
+		const logSpy = vi.spyOn(console, 'log');
+
+		const ctx = createExecutionContext();
+		await worker.scheduled!({} as any, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(quoteDenseCallCount).toBe(2);
+		expect(resendCalls.length).toBe(0); // no alert -- recovered on retry
+
+		const retryLogLines = logSpy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('passed on retry'));
+		expect(retryLogLines.length).toBe(1);
+		expect(retryLogLines[0]).toContain('text-quote-dense');
+	});
+
+	it('still alerts when a sample fails shape validation on both the initial attempt and the retry', async () => {
+		let quoteDenseCallCount = 0;
+		const resendCalls: any[] = [];
+		global.fetch = vi.fn(async (url: any, init?: any) => {
+			const urlStr = String(url);
+			if (urlStr.includes('generativelanguage.googleapis.com')) {
+				if (requestHasMedia(init)) {
+					return geminiSuccessResponse([{ Title: 'Founders Park Community Potluck', Date: 'Aug 8, 2026' }]);
+				}
+				const body = JSON.parse(init.body);
+				const promptText = body.contents[0].parts[0].text as string;
+				if (promptText.includes('Got Talent')) {
+					quoteDenseCallCount++;
+					// Both attempts under-extract.
+					return geminiSuccessResponse([{ Title: "Covington's Got Talent", Date: 'Sep 24, 2026' }]);
+				}
+				return geminiSuccessResponse([
+					{ Title: 'Book Fair', Date: 'Sep 14, 2026' },
+					{ Title: 'Picture Day', Date: 'Sep 17, 2026' },
+					{ Title: 'PTA Meeting', Date: 'Sep 24, 2026' },
+				]);
+			}
+			if (urlStr.includes('api.resend.com')) {
+				resendCalls.push(JSON.parse(init.body));
+				return new Response(JSON.stringify({ id: 'x' }), { status: 200 });
+			}
+			throw new Error('Unexpected fetch to ' + urlStr);
+		}) as any;
+
+		const ctx = createExecutionContext();
+		await worker.scheduled!({} as any, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(quoteDenseCallCount).toBe(2); // retried once, still failed
+		expect(resendCalls.length).toBe(1);
+		expect(resendCalls[0].html).toContain('Covington');
+		expect(resendCalls[0].html).toContain('Expected at least 2 event(s), got 1');
 	});
 
 	it('sends a failure alert when the Gemini call throws entirely for a sample', async () => {
