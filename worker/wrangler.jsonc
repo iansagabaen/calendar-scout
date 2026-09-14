@@ -37,4 +37,16 @@
 		"DEBUG_FTUX_EMAIL": "iansagabaen@gmail.com",
 		"FROM_EMAIL": "scout@sendtoschedule.com",
 	},
+	// Sender-identity instrumentation (2026-09-14, see
+	// research/2026-09-14-sender-identity-instrumentation.md) — deliberately NOT
+	// listed here as plain vars, unlike MY_EMAIL/DEBUG_FTUX_EMAIL above, since new
+	// instrumentation should hold a stricter bar than what shipped historically:
+	//   SENDER_HASH_SALT    — random hex string salting the one-way hash used as
+	//                         PostHog's distinct_id (src/analytics.ts hashSenderEmail()).
+	//                         Set via `wrangler secret put SENDER_HASH_SALT`.
+	//   TEST_SENDER_EMAILS  — comma-separated allowlist checked before hashing to
+	//                         compute the is_test_sender event property
+	//                         (src/analytics.ts isTestSender()); defaults to MY_EMAIL
+	//                         if unset. Set via `wrangler secret put TEST_SENDER_EMAILS`.
+	// See worker/.dev.vars.example for local-dev placeholders.
 }

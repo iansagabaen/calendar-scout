@@ -17,7 +17,7 @@ import { formatDateCleanly, resolveEventTimes } from './calendar-utils';
 import { buildReportEmail, buildFallbackEmail, buildErrorAlertEmail, buildCircuitBreakerAlertEmail, buildGmailPermissionDiagnosticEmail } from './email-templates';
 import { sendEmail, sendEmailBypassingBreaker, CircuitBreakerTrippedError } from './email-sender';
 import { logExecution } from './debug-log';
-import { capture } from './analytics';
+import { capture, hashSenderEmail, isTestSender } from './analytics';
 import { isPaused, setPaused } from './circuit-breaker';
 import { handleAdminRequest } from './admin';
 import { runNightlyRegressionTest } from './regression-test';
@@ -82,7 +82,17 @@ export default {
 async function processEmail(message: ForwardableEmailMessage, env: Env, messageId: string, startTime: number): Promise<void> {
 	const senderEmail = extractEmailAddress(message.from);
 
-	await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_email_received', { messageId });
+	// Privacy-conscious identity for PostHog (2026-09-14, see
+	// research/2026-09-14-sender-identity-instrumentation.md): the raw
+	// sender email must never reach PostHog. `isTestSenderFlag` is checked
+	// against the real address BEFORE hashing so it can answer "was this
+	// someone other than me" as a plain boolean; `senderHash` is a salted,
+	// one-way stand-in for `senderEmail` as PostHog's distinct_id so
+	// repeat-vs-new funnels still work without storing the address itself.
+	const isTestSenderFlag = isTestSender(senderEmail, env.TEST_SENDER_EMAILS || env.MY_EMAIL);
+	const senderHash = await hashSenderEmail(senderEmail, env.SENDER_HASH_SALT);
+
+	await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_email_received', { messageId, is_test_sender: isTestSenderFlag });
 
 	// 1. Parse the raw MIME message (Cloudflare hands us a raw stream, unlike Gmail's
 	// pre-parsed message object). postal-mime gives us plain text body + attachments,
@@ -119,7 +129,7 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 		console.log('Pre-filter: no event signals found, skipping AI call.');
 		const processingTime = Date.now() - startTime;
 		logExecution(senderEmail, 'FILTERED_OUT', 0, 'Pre-filter: no event signals', processingTime);
-		await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_filtered_out_pre_ai', { processingTimeMs: processingTime });
+		await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_filtered_out_pre_ai', { processingTimeMs: processingTime, is_test_sender: isTestSenderFlag });
 
 		// Detect Gmail permission issue: empty body but attachments present
 		const hasAttachments = mediaParts.length > 0;
@@ -155,15 +165,16 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 			await sendReport(env, senderEmail, aiResponse.events, emailSubject, receivedDate, isFirstTime, aiResponse.summary, shouldIncludeFeedback);
 
 			if (shouldIncludeFeedback) {
-				await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_survey_triggered', {});
+				await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_survey_triggered', { is_test_sender: isTestSenderFlag });
 			}
 
 			const processingTime = Date.now() - startTime;
 			logExecution(senderEmail, 'SUCCESS', aiResponse.events.length, '', processingTime);
-			await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_event_extraction_succeeded', {
+			await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_event_extraction_succeeded', {
 				eventCount: aiResponse.events.length,
 				processingTimeMs: processingTime,
 				isFirstTime,
+				is_test_sender: isTestSenderFlag,
 			});
 
 			// Alert if processing was slow.
@@ -173,7 +184,7 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 
 			if (isFirstTime) {
 				await addWelcomedUser(env.CALENDAR_SCOUT_KV, senderEmail, welcomedList);
-				await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_ftux_welcome_sent', {});
+				await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_ftux_welcome_sent', { is_test_sender: isTestSenderFlag });
 			}
 		} else if (aiResponse.error) {
 			// Extraction HARD-failed (every Gemini model errored) — this is not a
@@ -183,18 +194,20 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 			// (now informative) fallback message.
 			const processingTime = Date.now() - startTime;
 			logExecution(senderEmail, 'ERROR', 0, aiResponse.error, processingTime);
-			await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_processing_error', {
+			await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_processing_error', {
 				processingTimeMs: processingTime,
 				error: aiResponse.error,
+				is_test_sender: isTestSenderFlag,
 			});
 			await sendErrorAlert(env, senderEmail, 'ERROR', aiResponse.error, processingTime);
 			await sendFallbackGuarded(env, senderEmail, aiResponse.summary, isFirstTime, emailSubject);
 		} else {
 			const processingTime = Date.now() - startTime;
 			logExecution(senderEmail, 'NO_EVENTS', 0, aiResponse.summary || 'No events found', processingTime);
-			await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_no_events_found', {
+			await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_no_events_found', {
 				processingTimeMs: processingTime,
 				summary: aiResponse.summary,
+				is_test_sender: isTestSenderFlag,
 			});
 			await sendFallbackGuarded(env, senderEmail, aiResponse.summary, isFirstTime, emailSubject);
 		}
@@ -208,7 +221,7 @@ async function processEmail(message: ForwardableEmailMessage, env: Env, messageI
 		const processingTime = Date.now() - startTime;
 		const errMsg = e?.toString?.() || String(e);
 		logExecution(senderEmail, 'ERROR', 0, errMsg, processingTime);
-		await capture(env.POSTHOG_API_KEY, senderEmail, 'calendar_scout_processing_error', { processingTimeMs: processingTime, error: errMsg });
+		await capture(env.POSTHOG_API_KEY, senderHash, 'calendar_scout_processing_error', { processingTimeMs: processingTime, error: errMsg, is_test_sender: isTestSenderFlag });
 		await sendErrorAlert(env, senderEmail, 'ERROR', errMsg, processingTime);
 		console.log('Send failed for ' + senderEmail + ': ' + errMsg);
 	}

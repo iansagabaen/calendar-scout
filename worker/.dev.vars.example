@@ -5,3 +5,16 @@ GEMINI_API_KEY=your-gemini-api-key-here
 RESEND_API_KEY=your-resend-api-key-here
 POSTHOG_API_KEY=your-posthog-project-api-key-here
 ADMIN_SECRET=pick-a-long-random-string-here
+
+## Salt for one-way hashing the sender's email before it ever reaches PostHog —
+## see src/analytics.ts hashSenderEmail(). Never log or commit the real value.
+## Generate with `openssl rand -hex 32`. Also set live in production via
+## `wrangler secret put SENDER_HASH_SALT` (2026-09-14).
+SENDER_HASH_SALT=pick-a-long-random-hex-string-here
+
+## Comma-separated list of sender addresses Ian uses for testing, checked
+## BEFORE hashing so is_test_sender can be computed without ever storing a
+## real address (src/analytics.ts isTestSender()). Defaults to MY_EMAIL if
+## unset. Also set live in production via `wrangler secret put
+## TEST_SENDER_EMAILS` (2026-09-14).
+TEST_SENDER_EMAILS=iansagabaen@gmail.com
