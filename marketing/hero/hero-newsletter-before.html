@@ -1,27 +1,75 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=390, initial-scale=1"><title>Maple Grove Elementary: October Newsletter (FICTIONAL sample)</title>
+<!--
+  FICTIONAL sample school newsletter ("Maple Grove Elementary" is invented; no real school, person or logo).
+  Purpose: the "before" half of the Calendar Scout homepage hero before -> after story.
+  FACT CHECK: the four events buried in this text must stay identical to the four events in
+  worker/scripts/render-hero-email.ts (the "after" Scout Report):
+    1. Fall Picture Day            Thu Oct 22, 2026  8:30am-11:30am  Maple Grove Elementary Gym
+    2. Harvest Carnival            Fri Oct 30, 2026  5:30pm-8:00pm   Maple Grove Elementary Playground
+    3. Parent-Teacher Conferences  Tue Nov 10, 2026  3:00pm-7:00pm   Maple Grove Elementary Classrooms
+    4. Early Release Day           Wed Nov 18, 2026  12:30pm         Maple Grove Elementary
+  Deliberately NO other dates, weekdays or clock times anywhere else in the text (otherwise the Scout would
+  find extra events and the before -> after story would stop being faithful).
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Maple Grove Elementary: October Newsletter</title>
 <style>
-html,body{margin:0;padding:0;background:#fff;}
-body{width:390px;box-sizing:border-box;padding:18px 16px 20px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;color:#222;-webkit-font-smoothing:antialiased;}
-h1{font-size:19px;margin:0 0 4px;color:#1a3a6b;}
-.meta{font-size:11px;color:#777;margin-bottom:12px;border-bottom:1px solid #ddd;padding-bottom:8px;}
-h2{font-size:14px;margin:14px 0 4px;color:#1a3a6b;}
+html,body{margin:0;padding:0;background:#ffffff;}
+body{font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#2b2b2b;-webkit-font-smoothing:antialiased;}
+.wrap{width:100%;max-width:640px;margin:0 auto;box-sizing:border-box;}
+.banner{background:#1f3f73;color:#fff;padding:22px 16px 16px;text-align:center;border-bottom:5px solid #e0a526;}
+.banner .school{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#f3d98b;}
+.banner .title{font-family:Georgia,serif;font-size:27px;font-weight:bold;margin:4px 0 2px;line-height:1.15;}
+.banner .ed{font-size:12px;color:#d6e0f2;}
+.content{padding:14px 16px 18px;}
+.meta{font-size:11px;color:#777;border-bottom:1px solid #ddd;padding-bottom:8px;margin-bottom:12px;}
+h2{font-size:15px;margin:16px 0 5px;color:#1f3f73;border-bottom:2px solid #f3d98b;padding-bottom:2px;}
 p{margin:0 0 9px;}
+ul{margin:0 0 9px;padding-left:19px;}
+li{margin-bottom:5px;}
+.box{background:#fff6dc;border:1px solid #e8cf84;padding:9px 11px;margin:10px 0;font-size:12.5px;}
 .small{font-size:11px;color:#666;}
-</style></head><body>
-<h1>Maple Grove Elementary: October Newsletter</h1>
-<div class="meta">From: Principal's Office (sample) &middot; To: Maple Grove Families</div>
-<p>Dear Maple Grove Families, what a wonderful start to the year it has been! Our students have settled into their routines, the library is buzzing with new books, and we have been so grateful for the volunteers who helped with the beautification project over the long weekend.</p>
-<h2>From the Principal's Desk</h2>
-<p>As the weather cools, please remember that students go outside for recess unless it is raining, so jackets are a good idea. Lost and found is overflowing near the gym, and anything left by the end of the month will be donated. Please also remember to update your contact information in the family portal if anything has changed over the summer, and to review the updated pick-up line procedures sent home in September.</p>
+.sign{margin-top:12px;}
+.foot{background:#eef1f6;color:#666;font-size:10.5px;padding:10px 16px;text-align:center;line-height:1.5;}
+</style></head><body><div class="wrap">
+<div class="banner">
+  <div class="school">Maple Grove Elementary School</div>
+  <div class="title">The Grove Gazette</div>
+  <div class="ed">October Newsletter &middot; News for Maple Grove Families</div>
+</div>
+<div class="content">
+<div class="meta">From: Principal's Office (sample) &middot; To: Maple Grove Families &middot; Subject: Maple Grove Elementary: October Newsletter</div>
+
+<h2>A Note from Our Principal</h2>
+<p>Dear Maple Grove Families,</p>
+<p>What a wonderful start to the school year it has been! Our students have settled into their routines, the library is buzzing with new books, and the hallways are full of the kind of noise that makes a principal smile. I want to thank everyone who pitched in on the beautification project; the front garden has never looked better, and I have already heard several kindergarteners explain to visitors exactly which sunflower is theirs.</p>
+<p>As the weather cools, please remember that our students go outside for recess unless it is actually raining, so a jacket in the backpack is always a good idea. We are also asking families to double-check the pick-up line procedures that came home earlier this fall. A little patience and a visible name card on the dashboard make the afternoon go much faster for everyone.</p>
+
+<h2>What We Have Been Learning</h2>
+<p>Third grade is wrapping up its unit on local habitats and has been sketching the creek behind the playground. Fourth grade has begun fractions, and there has been a surprising amount of enthusiasm for pizza-based word problems. Our kindergarteners have learned everything there is to know about apples, including how to taste-test them fairly. Fifth grade is hard at work on its science fair ideas, and we cannot wait to see what they come up with.</p>
+
+<h2>Odds and Ends</h2>
+<ul>
+<li>Our lost-and-found bin near the gym is overflowing with sweatshirts, water bottles and one very lonely left boot. Anything unclaimed by the end of the month will be donated, so please take a look when you are in the building.</li>
+<li>Reading logs are due at the end of each school week. Twenty minutes of reading together each night makes a real difference, and it does not have to be a chapter book; comics, cookbooks and cereal boxes all count.</li>
+<li>Please send a labeled water bottle with your child each day, and label sweaters and lunch boxes too. Our custodians have become experts at guessing whose jacket is whose, but they would love a little help.</li>
+<li>Any medication your child needs at school must be dropped off in the front office with the proper form. Our office team is happy to walk you through it.</li>
+<li>If your phone number, address or emergency contact has changed over the summer, please update it in the family portal.</li>
+</ul>
+
+<h2>Lunch Menu</h2>
+<p>The cafeteria menu for the month is attached to this email. Our kitchen team is trying a few new items, including a baked pasta bowl and a build-your-own taco bar, and they would love to hear what your kids think. A reminder that the lunch account balance can be checked online at any time, and students can always ask the cafeteria staff for a quick reminder.</p>
+
 <h2>Upcoming Happenings</h2>
-<p>We have a busy few weeks ahead. Picture day is coming up on Thursday, October 22, and will take place in the gym from 8:30 to 11:30 in the morning; order forms will go home the week before, and retakes will be offered in the spring. Please do not wait until the last minute to send in your forms, as the photographer cannot guarantee a spot for late orders.</p>
-<p>Our PTA is thrilled to announce the return of the Harvest Carnival on Friday, October 30, from 5:30 to 8:00 pm on the playground. There will be games, a cake walk, and a chili supper, and costumes are welcome (no masks that cover the whole face, please). We are still looking for volunteers to run booths, and sign-up sheets are available in the front office, so if you can spare an hour we would love your help.</p>
-<h2>Curriculum Corner</h2>
-<p>Third grade is wrapping up its unit on local habitats, fourth grade has begun fractions, and our kindergarteners have learned all about apples. Reading logs are due at the end of each week, and we encourage families to read together for at least twenty minutes each night. Math homework packets continue to go home on Mondays.</p>
-<h2>Conferences and Schedule Changes</h2>
-<p>Parent-teacher conferences will be held on Tuesday, November 10, between 3:00 and 7:00 pm in your child's classroom. Conferences are fifteen minutes long, and a sign-up link will arrive by email next week. Please also note that on Wednesday, November 18, we will have an early release day so teachers can plan together, and students will be dismissed at 12:30 pm. Aftercare will be available as usual for registered families.</p>
-<h2>Reminders</h2>
-<p>Please send a water bottle with your child each day, label sweaters and lunch boxes, and make sure that all medications are dropped off in the front office with the proper forms. The cafeteria menu for October is attached, and the lunch account balance can be checked online. Thank you, as always, for being such a caring community.</p>
-<p class="small">Maple Grove Elementary &middot; 100 Example Street, Anytown &middot; This is a fictional sample for illustration.</p>
-</body></html>
+<p>We have a busy few weeks ahead, so here is what is coming up. Picture day is next Thursday, Oct 22, and will take place in the gym from 8:30am to 11:30am. Individual portraits will be taken by grade, and order forms will go home with students the week before. Please do not wait until the last minute to send in your forms, as the photographer cannot guarantee a spot for late orders, and retakes will be offered in the spring.</p>
+<p>Our PTA is thrilled to announce the return of the Harvest Carnival on Friday, Oct 30, from 5:30pm to 8:00pm on the playground. There will be games, a cake walk and a chili supper, and costumes are welcome (no masks that cover the whole face, please). We are still looking for volunteers to run booths, and sign-up sheets are waiting in the front office, so if you can spare an hour we would love your help.</p>
+<div class="box"><strong>PTA fundraiser:</strong> our fall fundraiser is underway and every dollar goes toward classroom supplies and new playground equipment. Each class that reaches its goal earns a popcorn party, and the PTA is hoping for a strong finish. If you would rather give directly, any amount is gratefully received; just stop by the office or send a check with your child, made out to the Maple Grove PTA.</div>
+<p>Parent-teacher conferences will be held on Tuesday, Nov 10, from 3:00pm to 7:00pm in your child's classroom. Conferences are fifteen minutes long, and a sign-up link will arrive by email shortly, so please keep an eye on your inbox. Please also note that on Wednesday, Nov 18, we will have an early release day so that teachers can plan together, and students will be dismissed at 12:30pm. Aftercare will be available as usual for registered families.</p>
+
+<h2>Reading Tips from Our Librarian</h2>
+<p>Our librarian reminds families that the best reading habit is the one that actually happens. Try reading aloud even with older kids, let your child pick the book, and talk about the story in the car. If your child says a book is boring, it is perfectly fine to put it down and try another one. Our library is always happy to recommend something new.</p>
+
+<p class="sign">Thank you, as always, for being such a caring and generous community. We are so lucky to have you.<br><br>Warmly,<br><strong>Principal Whitfield</strong> and the Maple Grove Staff</p>
+<p class="small">Please do not reply to this message; it was sent from an unmonitored address. This is a fictional sample created for illustration.</p>
+</div>
+<div class="foot">Maple Grove Elementary School &middot; 100 Example Street, Anytown &middot; You are receiving this because you are a Maple Grove family.<br>Fictional sample &mdash; not a real school.</div>
+</div></body></html>
