@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar Scout hero preview - Variant A (text left, before-phone right)</title>
+<!-- PREVIEW ONLY. Not the live site. Static HTML + inline CSS. Fonts load from Google Fonts when online;
+     Georgia / system fonts are the offline fallback. Images are in ./assets/. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest:#2E4A2E; --olive:#556B55; --sage-mist:#F3F7F3; --sage-border:#E0E7E0;
+    --blush:#FDE3D8; --light-sage:#D5E3DB; --white:#FFFFFF;
+    --sub:#3E5A3E; /* Forest ~85% on white: solid colour so contrast stays >= 6:1 (Forest/70 is only 4.2:1) */
+    --serif:"Cormorant Garamond", Georgia, "Times New Roman", serif;
+    --sans:"Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--white);color:var(--forest);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  h1{font-family:var(--serif);font-weight:500;margin:0}
+
+  /* nav (same as live site) */
+  nav{padding:24px}
+  .nav-in{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .logo{width:32px;height:32px;border-radius:50%;background:var(--forest);display:flex;align-items:center;justify-content:center}
+  .logo svg{width:16px;height:16px}
+  .brand{display:flex;flex-direction:column;line-height:1.15}
+  .brand b{font-family:var(--serif);font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .brand span{font-size:12px;color:var(--olive);letter-spacing:.02em}
+
+  .wrap{max-width:1024px;margin:0 auto;padding:4px 0 0}
+
+  /* hero band */
+  .band{
+    position:relative;overflow:hidden;border-radius:40px;
+    background:
+      radial-gradient(700px 420px at 100% 100%, rgba(253,227,216,.85), rgba(253,227,216,0) 70%),
+      radial-gradient(520px 360px at 0% 0%, rgba(213,227,219,.55), rgba(213,227,219,0) 70%),
+      var(--sage-mist);
+    border:1px solid var(--sage-border);
+    box-shadow:0 25px 50px -12px rgba(46,74,46,.18);
+    height:600px;
+  }
+  .copy{position:absolute;left:56px;top:0;bottom:0;width:540px;display:flex;flex-direction:column;justify-content:center}
+  h1{font-size:52px;line-height:1.08;letter-spacing:-.015em}
+  .sub{font-size:20px;line-height:1.5;color:var(--sub);margin:22px 0 30px;max-width:470px}
+  .cta-row{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+  .cta{display:inline-flex;align-items:center;gap:12px;background:var(--forest);color:#fff;text-decoration:none;
+    font-weight:600;font-size:18px;padding:18px 28px;border-radius:16px;box-shadow:0 10px 15px -3px rgba(46,74,46,.22)}
+  .cta svg{width:18px;height:18px}
+  .trust{font-size:14px;color:var(--olive);line-height:1.4}
+
+  /* phone: tilted, runs off the bottom, fades into the band.
+     The tilt is on .phone-wrap; the fade mask is on the inner .fadebox so the mask never clips the rotated corners. */
+  .phone-wrap{position:absolute;right:40px;top:34px;width:350px;transform:rotate(3deg);transform-origin:50% 0}
+  .fadebox{-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 66%,transparent 97%);mask-image:linear-gradient(to bottom,#000 0,#000 66%,transparent 97%)}
+  .phone{background:#1c1c1c;border-radius:48px;padding:9px;box-shadow:0 30px 60px -15px rgba(46,74,46,.45),0 8px 16px rgba(0,0,0,.10)}
+  .phone img{display:block;width:100%;height:auto;border-radius:39px}
+
+  /* forward-it card stub (for context only; same look as live card) */
+  .stub{margin:32px auto 0;max-width:672px;background:var(--sage-mist);border:1px solid var(--sage-border);border-radius:40px;padding:36px 40px;
+    font-family:var(--serif);font-style:italic;font-size:30px;color:rgba(46,74,46,.9);line-height:1.25;box-shadow:0 20px 25px -5px rgba(46,74,46,.05)}
+  .stub p{margin:0 0 10px}
+  .stub .btn{display:inline-block;font-family:var(--sans);font-style:normal;font-weight:600;font-size:18px;background:var(--forest);color:#fff;padding:16px 28px;border-radius:16px;margin:2px 0 10px}
+  .note{max-width:1024px;margin:18px auto 40px;padding:0;font-size:12px;color:var(--olive)}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:700px){
+    nav{padding:16px}
+    .wrap{padding:4px 16px 0}
+    .band{height:auto;border-radius:32px;display:flex;flex-direction:column}
+    .copy{position:static;width:auto;padding:34px 22px 0}
+    h1{font-size:36px;line-height:1.1;text-wrap:balance}
+    h1 br{display:none}
+    .sub{font-size:18px;margin:16px 0 22px}
+    .cta{width:100%;justify-content:center;font-size:17px;padding:17px 20px}
+    .cta-row{align-items:stretch}
+    .trust{text-align:center}
+    .phone-wrap{position:relative;right:auto;top:auto;width:262px;margin:30px auto 0;transform:rotate(3deg);transform-origin:50% 100%}
+    .fadebox{height:300px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 55%,transparent 97%);mask-image:linear-gradient(to bottom,#000 0,#000 55%,transparent 97%)}
+    .phone{border-radius:40px;padding:8px;box-shadow:none}
+    .phone img{border-radius:26px}
+    .stub{font-size:24px;padding:24px;border-radius:32px}
+  }
+</style>
+</head>
+<body>
+<nav><div class="nav-in">
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg></div>
+  <div class="brand"><b>Calendar Scout</b><span>sendtoschedule.com</span></div>
+</div></nav>
+
+<main class="wrap">
+  <section class="band" aria-label="Hero">
+    <div class="copy">
+      <h1>Turn long newsletters <br>into easy calendar events</h1>
+      <p class="sub">Forward the one full of dates. Get back each event on its own card, with a one-tap Add to Calendar button.</p>
+      <div class="cta-row">
+        <a class="cta" href="#forward-it">Try it with one newsletter
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a>
+        <span class="trust">Free. No account. Opens a pre-filled Google Calendar event.</span>
+      </div>
+    </div>
+    <div class="phone-wrap"><div class="fadebox">
+      <div class="phone"><img src="assets/hero-phone-before-dense@3x.png" alt="A school newsletter on a phone: long paragraphs of small text with dates such as Oct 22 and Oct 30 buried inside them, and more below."></div>
+    </div></div>
+  </section>
+
+  <div class="stub" id="forward-it">
+    <p>1. Find an email in your inbox</p>
+    <p>2. Forward it to:</p>
+    <span class="btn">forward@sendtoschedule.com</span>
+  </div>
+</main>
+<div class="note">Preview only. The real page also has the scout-kid mascot and the full "forward it" card (shown here as a short stub).</div>
+</body>
+</html>
